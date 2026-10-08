@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "enterprise-it-support-agent"
+version = "0.1.0"
+description = "Phase 1: dataset exploration and structured IT ticket classification"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "openai>=2.0,<3",
+    "pandas>=2.2,<4",
+    "pydantic>=2.8,<3",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<10"]
+
+[project.scripts]
+it-support = "app.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

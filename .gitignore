@@ -1,0 +1,41 @@
+.venv/
+.uv-cache/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+pytest-cache-files-*/
+*.egg-info/
+build/
+dist/
+.env
+.env.*
+!.env.example
+data/raw/
+
+# Local credentials and private configuration
+.aws/
+.secrets/
+secrets.*
+credentials*.json
+*.pem
+*.key
+
+# Additional development caches and local editor state
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+.ipynb_checkpoints/
+.vscode/
+.idea/
+*.log
+
+# Reproducible reports and rendered documentation
+/reports/
+/README.html
+/README_files/
+.quarto/
