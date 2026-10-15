@@ -25,7 +25,13 @@ def main(argv: list[str] | None = None) -> int:
     classify = commands.add_parser("classify", help="Classify one ticket using OpenAI.")
     classify.add_argument("--subject", required=True)
     classify.add_argument("--description", required=True)
+    from app.kb.cli import add_commands, run as run_kb
+
+    add_commands(commands)
     args = parser.parse_args(argv)
+
+    if args.command == "kb":
+        return run_kb(args)
 
     try:
         if args.command == "download":

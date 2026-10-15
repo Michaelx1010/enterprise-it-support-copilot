@@ -4,6 +4,11 @@ An incremental AI Engineer portfolio project. Phase 1 explores a synthetic IT
 helpdesk dataset and classifies a ticket's subject and description into a validated
 `category`, `priority`, and concise `summary`.
 
+Milestone 2A adds a fictional Markdown knowledge base, OpenAI embeddings,
+PostgreSQL/pgvector search, and retrieval evaluation. See
+[the milestone 2A guide](docs/phase2a.md) for setup, architecture, and commands.
+Grounded recommendation generation has not been implemented.
+
 ## Setup
 
 Requires Python 3.11 or newer. From the repository root:
@@ -22,9 +27,9 @@ uv sync --locked --extra dev
 The examples below use Windows PowerShell and the virtual environment directly,
 so activating it is optional. On macOS/Linux, use `.venv/bin/python` instead.
 
-Dependencies are limited to Pydantic (schemas), pandas (exploration), the OpenAI
-SDK (initial provider), and pytest (development tests). No orchestration framework,
-database, retrieval system, web server, or frontend is included in Phase 1.
+Dependencies are Pydantic (schemas), pandas (ticket exploration), the OpenAI SDK
+(initial provider), psycopg and pgvector (KB storage), and pytest (development
+tests). Phase 1 commands do not require a running database.
 
 ## Download and inspect the data
 
@@ -139,8 +144,9 @@ distributions, missing values, duplicates, and text lengths.
 The category descriptions and priority rubric in the prompt are explicit project
 assumptions: the dataset does not supply a detailed labeling guide. Related issues
 can span categories, and valid structured output does not guarantee correct labels
-or factual summaries. No accuracy claim is made in Phase 1. Evaluation, RAG, tools,
-LangGraph, FastAPI, Docker, and a frontend remain later phases in
+or factual summaries. No accuracy claim is made in Phase 1. Milestone 2A evaluates
+retrieval separately. Recommendation generation, tools, LangGraph, FastAPI,
+application containerization, and a frontend remain later work in
 [`PROJECT_BRIEF.md`](PROJECT_BRIEF.md).
 
 API references: [OpenAI Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs?api-mode=responses)

@@ -1,0 +1,24 @@
+{"id":"dev-01","split":"dev","query":"My home internet works but Northstar Connect cannot establish a tunnel to the office.","relevant_sections":["vpn-access#connection-failures"]}
+{"id":"dev-02","split":"dev","query":"I replaced my phone and no longer have the authenticator needed to sign in.","relevant_sections":["mfa-recovery#lost-phone-or-replaced-authenticator"]}
+{"id":"dev-03","split":"dev","query":"After changing my password, my account keeps getting locked again. Could my phone be using the old one?","relevant_sections":["account-lockouts#lockout-returns-after-reset","password-reset#update-saved-credentials"]}
+{"id":"dev-04","split":"dev","query":"The design software is installed but I need permission to use the team project.","relevant_sections":["software-access#application-access-request"]}
+{"id":"dev-05","split":"dev","query":"I have an assigned subscription but my desktop app still says trial version.","relevant_sections":["software-licensing#activation-fails-after-assignment"]}
+{"id":"dev-06","split":"dev","query":"VPN is connected and intranet works, but the project share says access denied.","relevant_sections":["shared-drive-access#folder-permission-requests"]}
+{"id":"dev-07","split":"dev","query":"Webmail has today's messages but the desktop email app hasn't downloaded anything.","relevant_sections":["email-troubleshooting#browser-works-but-desktop-does-not-sync"]}
+{"id":"dev-08","split":"dev","query":"Everyone on this floor can join Wi-Fi but no public website opens.","relevant_sections":["wifi-connection#connected-without-internet"]}
+{"id":"dev-09","split":"dev","query":"The shared printer is offline and everyone's documents are stuck in the queue.","relevant_sections":["printer-troubleshooting#jobs-stuck-or-printer-offline"]}
+{"id":"dev-10","split":"dev","query":"I submitted my company password on a page linked from a suspicious email.","relevant_sections":["phishing-reporting#credentials-entered-on-a-suspicious-page"]}
+{"id":"dev-11","split":"dev","query":"Can I get remote desktop enabled for my company workstation to work from home?","relevant_sections":["remote-desktop#prerequisites-and-authorization"]}
+{"id":"dev-12","split":"dev","query":"My application crashes each time I open the same document. What details should IT get?","relevant_sections":["software-access#application-crashes"]}
+{"id":"test-01","split":"held_out","query":"My usual authenticator still opens but every fresh numeric code is refused.","relevant_sections":["mfa-recovery#codes-rejected-on-the-same-phone"]}
+{"id":"test-02","split":"held_out","query":"I can browse internal pages from home but the remote PC named NS-042 cannot be contacted.","relevant_sections":["remote-desktop#target-workstation-unreachable"]}
+{"id":"test-03","split":"held_out","query":"I can read the team's shared inbox but cannot send messages as that mailbox.","relevant_sections":["email-troubleshooting#shared-mailbox-permissions"]}
+{"id":"test-04","split":"held_out","query":"My staff wireless connection says the device certificate expired. Should I reset my password?","relevant_sections":["wifi-connection#cannot-join-the-wireless-network"]}
+{"id":"test-05","split":"held_out","query":"I get repeated sign-in approval notifications even though I am not logging in anywhere.","relevant_sections":["mfa-recovery#unrequested-authentication-prompts","phishing-reporting#repeated-unexpected-mfa-prompts"]}
+{"id":"test-06","split":"held_out","query":"My work password has expired and I need to choose a replacement safely.","relevant_sections":["password-reset#forgotten-or-expired-password"]}
+{"id":"test-07","split":"held_out","query":"The VPN says connected but every internal hostname is unavailable, even though public websites load.","relevant_sections":["vpn-access#connected-but-resources-unavailable"]}
+{"id":"test-08","split":"held_out","query":"My badge opens the building but won't release my confidential print jobs.","relevant_sections":["printer-troubleshooting#secure-release-does-not-recognize-badge"]}
+{"id":"unsupported-01","split":"unsupported","query":"How do I recover a permanently deleted spreadsheet from last year's backup?","relevant_sections":[]}
+{"id":"unsupported-02","split":"unsupported","query":"What is the maximum reimbursement for an ergonomic chair in my home office?","relevant_sections":[]}
+{"id":"unsupported-03","split":"unsupported","query":"Please provide the commands to fail over our production Kubernetes cluster.","relevant_sections":[]}
+{"id":"unsupported-04","split":"unsupported","query":"My laptop battery is swollen. What is the company's approved replacement process?","relevant_sections":[]}
