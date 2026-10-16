@@ -7,7 +7,9 @@ helpdesk dataset and classifies a ticket's subject and description into a valida
 Milestone 2A adds a fictional Markdown knowledge base, OpenAI embeddings,
 PostgreSQL/pgvector search, and retrieval evaluation. See
 [the milestone 2A guide](docs/phase2a.md) for setup, architecture, and commands.
-Grounded recommendation generation has not been implemented.
+Milestone 2B adds structured, evidence-grounded recommendations with cited steps,
+explicit abstention, and recommendation evaluation. See
+[the milestone 2B guide](docs/phase2b.md) for commands, guarantees, and limitations.
 
 ## Setup
 
@@ -123,11 +125,36 @@ does not need to change. Those adapters are deliberately not implemented yet.
 .\.venv\Scripts\python.exe -m pytest
 ```
 
-Tests are offline and need no API key. They cover label and summary validation,
+Offline tests need no API key. They cover label and summary validation,
 blank inputs, a substitute provider, CSV preservation and profiling, CLI errors,
 and the real OpenAI SDK's schema serialization and parsing via a mock HTTP
 transport. These checks establish application behavior, not live model quality
-or account/model availability.
+or account/model availability. Four pgvector integration tests additionally need
+`TEST_DATABASE_URL`; see the milestone 2A guide. Phase 2B adds fake-retrieval and
+fake-provider tests for citations, escalation structure, abstention, errors,
+evaluation denominators, and CLI behavior.
+
+## Recommend grounded support actions
+
+After completing the KB setup and ingestion in the milestone 2A guide:
+
+```powershell
+uv run --env-file .env python -m app.cli recommend --subject "Unexpected MFA prompts" --description "I keep getting authenticator approvals I did not initiate."
+uv run --env-file .env python -m app.cli recommend-evaluate
+```
+
+On the prepared machine, add `--env-file .env.db` after `--env-file .env`.
+These commands make paid embedding and recommendation calls. The optional
+`OPENAI_RECOMMENDATION_MODEL` defaults to `gpt-4.1-mini-2025-04-14` independently
+of classification. No new secret or dependency is needed.
+
+The JSON response contains a recommendation plus the retrieved evidence with
+full source metadata. Every recommended step cites retrieved chunk IDs. A
+documented escalation can be a supported action even when the issue is unresolved.
+`insufficient_evidence` has no steps; its false escalation flag means no grounded
+escalation was issued, **not** that escalation is unnecessary or the issue is safe.
+Citation validation checks source membership, not whether the cited text supports
+the action. Summary groundedness and content correctness still need manual review.
 
 ## Dataset and limitations
 
@@ -145,7 +172,8 @@ The category descriptions and priority rubric in the prompt are explicit project
 assumptions: the dataset does not supply a detailed labeling guide. Related issues
 can span categories, and valid structured output does not guarantee correct labels
 or factual summaries. No accuracy claim is made in Phase 1. Milestone 2A evaluates
-retrieval separately. Recommendation generation, tools, LangGraph, FastAPI,
+retrieval separately; milestone 2B keeps mechanical recommendation metrics separate
+from manual groundedness review. Tools, LangGraph, FastAPI,
 application containerization, and a frontend remain later work in
 [`PROJECT_BRIEF.md`](PROJECT_BRIEF.md).
 
