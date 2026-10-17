@@ -3,6 +3,7 @@
 from collections import Counter
 from datetime import datetime, timezone
 import hashlib
+import json
 from pathlib import Path
 from typing import Literal
 
@@ -14,7 +15,7 @@ from app.kb.schemas import SearchResult
 from app.kb.store import PgvectorStore
 from app.providers.embeddings import EmbeddingError, EmbeddingProvider
 from app.providers.recommendation import RecommendationError, RecommendationProvider
-from app.rag.prompts import PROMPT_VERSION
+from app.rag.prompts import INSTRUCTIONS, PROMPT_VERSION
 from app.rag.recommendation import InvalidCitationError, build_query, generate_recommendation, retrieve_ticket
 from app.rag.schemas import SupportRecommendation
 from app.schemas import TicketInput
@@ -93,9 +94,14 @@ def aggregate(rows: list[dict]) -> dict:
         key = ("true_positive" if actual else "false_negative") if expected else (
             "false_positive" if actual else "true_negative")
         confusion[key] += 1
+    schema_rejected = sum(row["error"]["code"] == "invalid_output" for row in rejected)
+    provider_failed = sum(row["error"]["stage"] == "generation" for row in failed)
+    expected_positive = sum(row["expected_escalation"] for row in rows)
     return {
         "attempted": len(rows), "accepted": len(accepted), "rejected": len(rejected), "failed": len(failed),
         "rejection_rate": ratio(len(rejected), len(rows)), "failure_rate": ratio(len(failed), len(rows)),
+        "schema_rejections": {"count": schema_rejected, "rate": ratio(schema_rejected, len(rows))},
+        "provider_failures": {"count": provider_failed, "rate": ratio(provider_failed, len(rows))},
         "errors_by_code": dict(Counter(row["error"]["code"] for row in rows if row["error"])),
         "parsed_candidate_citations": citations(rows), "accepted_citations": citations(accepted),
         "unsupported_abstention": {"abstained": abstained, "attempted": len(unsupported),
@@ -103,6 +109,12 @@ def aggregate(rows: list[dict]) -> dict:
         "incorrect_abstentions": {"count": incorrect, "answerable_cases": len(answerable),
                                   "rate": ratio(incorrect, len(answerable))},
         "escalation": confusion | {
+            "precision": ratio(confusion["true_positive"], confusion["true_positive"] + confusion["false_positive"]),
+            "recall": ratio(confusion["true_positive"], confusion["true_positive"] + confusion["false_negative"]),
+            "expected_positive_attempts": expected_positive,
+            "recall_over_all_positive_attempts": ratio(confusion["true_positive"], expected_positive),
+            "false_negative_ids": [row["id"] for row in accepted if row["expected_escalation"]
+                                   and not row["recommendation"]["escalation_required"]],
             "unscored_rejected_or_failed": len(rejected) + len(failed),
             "label_match_over_all_attempts": ratio(confusion["true_positive"] + confusion["true_negative"], len(rows)),
         },
@@ -121,7 +133,9 @@ def evaluate(path: Path, *, embedder: EmbeddingProvider, store: PgvectorStore,
         row = case.model_dump() | {
             "outcome": "failed", "recommendation": None, "rejected_candidate": None,
             "evidence": [], "citation_metrics": None, "error": None,
-            "manual_review": {"status": "pending", "groundedness": None, "correctness": None},
+            "manual_review": {"status": "pending", "groundedness": None, "correctness": None,
+                              "procedural_applicability": None, "summary_accuracy": None,
+                              "unsupported_claims": None, "notes": None},
         }
         try:
             evidence = retrieve_ticket(case.ticket, embedder=embedder, store=store, top_k=top_k)
@@ -150,6 +164,10 @@ def evaluate(path: Path, *, embedder: EmbeddingProvider, store: PgvectorStore,
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "top_k": top_k, "prompt_version": PROMPT_VERSION, "chunker_version": CHUNKER_VERSION,
+        "prompt_sha256": hashlib.sha256(INSTRUCTIONS.encode()).hexdigest(),
+        "schema_sha256": hashlib.sha256(
+            json.dumps(SupportRecommendation.model_json_schema(), sort_keys=True).encode()
+        ).hexdigest(),
         "generation_settings": generation_settings, "index": manifest, "dataset_sha256": dataset_hash,
         "aggregates": aggregate(rows),
         "by_group": {group: aggregate([row for row in rows if row["group"] == group])

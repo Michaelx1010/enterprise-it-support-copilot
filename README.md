@@ -10,6 +10,9 @@ PostgreSQL/pgvector search, and retrieval evaluation. See
 Milestone 2B adds structured, evidence-grounded recommendations with cited steps,
 explicit abstention, and recommendation evaluation. See
 [the milestone 2B guide](docs/phase2b.md) for commands, guarantees, and limitations.
+Phase 2B.1 refines prompting and schema descriptions, adds development/held-out
+recommendation cases, and reports escalation precision/recall separately from
+manual groundedness review. See [the reliability review](docs/phase2b1.md).
 
 ## Setup
 

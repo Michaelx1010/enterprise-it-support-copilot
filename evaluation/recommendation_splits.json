@@ -1,0 +1,27 @@
+{
+  "prepared_at": "2026-10-16T10:32:15.594937+00:00",
+  "baseline_commit": "eb50233a583ba0a6a2ceb381ebefbdc3adfc680a",
+  "hash_convention": "SHA-256 of UTF-8 text with LF newlines",
+  "protocol": "Freeze before prompt/schema changes. Original 16 and new 12 are development. Held-out 8: no model calls or outcome inspection until revision is frozen; no tuning after held-out evaluation. Same author/corpus limits independence.",
+  "datasets": {
+    "evaluation/recommendation.jsonl": {
+      "cases": 16,
+      "sha256": "a5e739154e7c84ea10f08e38e30478cb6a934c48469e3a419d11af0f440135ae"
+    },
+    "evaluation/recommendation_dev.jsonl": {
+      "cases": 12,
+      "sha256": "c22639f51ee0f4278f5c173b73db3baa0b206d3b3b3be682050fd01bfe3e8ca5"
+    },
+    "evaluation/recommendation_heldout.jsonl": {
+      "cases": 8,
+      "sha256": "bce58d5d369dc454928f771b76b7eb70e218f70421fbb6a82c2efe487242fc90"
+    }
+  },
+  "frozen_revision": {
+    "frozen_before_heldout_at": "2026-10-16T10:41:26.386770+00:00",
+    "prompt_version": "grounded-recommendation-v4",
+    "prompt_sha256": "8fbaf1fb619b7075dfa872cf675e5c5446ac63e0f979d7a43edfec595da38275",
+    "schema_sha256": "a73ef1e090b3ca069ad58580f81caec4fed551e8a9b914d532e14719aa3a4f87",
+    "decision": "Final development revision v4. Evaluate held-out once; no subsequent prompt/schema tuning. Known development failures retained."
+  }
+}
