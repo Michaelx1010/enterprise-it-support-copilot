@@ -31,12 +31,17 @@ def main(argv: list[str] | None = None) -> int:
     from app.rag.cli import add_commands as add_rag_commands, run as run_rag
 
     add_rag_commands(commands)
+    from app.operations.cli import add_commands as add_ops_commands, run as run_ops
+
+    add_ops_commands(commands)
     args = parser.parse_args(argv)
 
     if args.command == "kb":
         return run_kb(args)
     if args.command in ("recommend", "recommend-evaluate"):
         return run_rag(args)
+    if args.command == "ops":
+        return run_ops(args)
 
     try:
         if args.command == "download":

@@ -14,6 +14,11 @@ Phase 2B.1 refines prompting and schema descriptions, adds development/held-out
 recommendation cases, and reports escalation precision/recall separately from
 manual groundedness review. See [the reliability review](docs/phase2b1.md).
 
+Phase 3 adds a separate synthetic `ops` database schema and six read-only IT
+investigation tools. They expose recorded account, device, entitlement, ticket,
+and incident facts without calling an LLM. See [the Phase 3 guide](docs/phase3.md)
+for setup, restricted reader provisioning, CLI contracts, timestamps, and limits.
+
 ## Setup
 
 Requires Python 3.11 or newer. From the repository root:
@@ -176,7 +181,7 @@ assumptions: the dataset does not supply a detailed labeling guide. Related issu
 can span categories, and valid structured output does not guarantee correct labels
 or factual summaries. No accuracy claim is made in Phase 1. Milestone 2A evaluates
 retrieval separately; milestone 2B keeps mechanical recommendation metrics separate
-from manual groundedness review. Tools, LangGraph, FastAPI,
+from manual groundedness review. LangGraph, FastAPI,
 application containerization, and a frontend remain later work in
 [`PROJECT_BRIEF.md`](PROJECT_BRIEF.md).
 

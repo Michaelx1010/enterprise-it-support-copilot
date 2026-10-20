@@ -27,6 +27,7 @@ include = ["app*", "evaluation*"]
 
 [tool.setuptools.package-data]
 "app.kb" = ["schema.sql"]
+"app.operations" = ["schema.sql", "reader_permissions.sql", "seed_data.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
