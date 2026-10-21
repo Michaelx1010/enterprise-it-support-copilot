@@ -193,3 +193,34 @@ def test_postgres_cli_uses_both_real_readers(reader_pair, inv_request, inv_depen
     data = json.loads(capsys.readouterr().out)
     assert data['backend'] == 'postgres' and data['result']['status'] == 'completed'
     assert len(data['result']['operational_evidence'][0]['observation']['result']['devices']) == 2
+
+
+@pytest.mark.parametrize('items', [
+    [('get_employee_devices', {'employee_id': 'EMP-001'}), ('get_device_details', {'device_id': 'DEV-001'})],
+    [('get_employee_account_status', {'employee_id': 'EMP-001'}), ('get_recent_support_tickets', {'employee_id': 'EMP-001', 'limit': 5, 'since': None})],
+    [('check_software_entitlement', {'employee_id': 'EMP-001', 'software_id': 'SW-001'}), ('get_active_service_incidents', {'service_id': 'SVC-001', 'limit': 5})],
+])
+def test_mocked_llm_with_real_pgvector_and_all_operational_tools(investigation_db, reader_pair, inv_request, inv_dependencies, planner_client, planner_response, items):
+    import httpx
+    from app.providers.openai_planner import OpenAIPlanner
+
+    requests = []
+    choices = decisions(*items)
+    def handler(request):
+        payload = json.loads(json.loads(request.content)['input'][1]['content'])
+        index = len(requests)
+        requests.append(payload)
+        assert len(payload['untrusted_evidence']['operational_observations']) == index
+        return httpx.Response(200, json=planner_response(choices[index]))
+    before = snapshot(investigation_db)
+    deps = replace(inv_dependencies, db=reader_pair[0], store=reader_pair[1], fixture_lookup=None,
+                   embedder=ScriptedEmbedder(build_query(inv_request.ticket), SPEC, VECTOR),
+                   planner=OpenAIPlanner(planner_client(handler)), phase='4B.1')
+    result = run_investigation(inv_request, dependencies=deps)
+    assert result.status == 'completed' and result.phase == '4B.1'
+    assert result.lookup_attempts == 2 and len(requests) == 3
+    assert result.kb_evidence[0].result.distance == pytest.approx(0)
+    assert all(not e.observation.result.live_verified for e in result.operational_evidence)
+    if items[0][0] == 'get_employee_devices':
+        assert requests[1]['control']['available_device_ids'] == ['DEV-001', 'DEV-010']
+    assert snapshot(investigation_db) == before

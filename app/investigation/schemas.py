@@ -140,7 +140,7 @@ class TraceEvent(Model):
 
 
 class InvestigationResult(Model):
-    phase: Literal['4A'] = '4A'
+    phase: Literal['4A', '4B.1'] = '4A'
     status: Literal['completed', 'partial', 'failed']
     stop_reason: str
     started_at: AwareDatetime

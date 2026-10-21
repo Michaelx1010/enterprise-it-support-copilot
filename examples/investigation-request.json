@@ -1,0 +1,9 @@
+{
+  "ticket": {
+    "subject": "VPN cannot connect",
+    "description": "The connection fails after sign in. Please investigate the recorded account, device and VPN service information."
+  },
+  "employee_id": "EMP-001",
+  "service_ids": ["SVC-001"],
+  "software_ids": []
+}

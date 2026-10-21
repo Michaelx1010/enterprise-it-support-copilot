@@ -24,6 +24,11 @@ deterministic tool scope, typed evidence, and partial-result handling. It gather
 evidence locally without a live planner or synthesis model. See
 [the Phase 4A guide](docs/phase4.md) for the graph, CLI, limits and tests.
 
+Phase 4B.1 connects an OpenAI Structured Outputs planner to the same guarded loop.
+The model selects read-only lookups using returned evidence, then finishes or
+requests clarification. See [the live planner guide](docs/phase4b1.md). Final
+recommendation synthesis remains deferred to Phase 4B.2.
+
 ## Setup
 
 Requires Python 3.11 or newer. From the repository root:
@@ -184,6 +189,17 @@ preserves source metadata and reports `completed`, `partial` or `failed`.
 `human_review_required=true` is an indicator, not an implemented approval workflow.
 Recommendation generation remains unconnected in Phase 4A.
 
+For live planning, prepare the separate restricted readers and local API settings
+described in the live planner guide. This command makes paid classification,
+embedding and planner requests; it does not generate a recommendation:
+
+```powershell
+uv run --locked --env-file .env --env-file .env.ops --env-file .env.kb python -m app.cli investigate live --request examples/investigation-request.json
+```
+
+`OPENAI_PLANNER_MODEL` independently configures the planner. All automated planner
+tests use mocked API responses, including the tests against real PostgreSQL.
+
 ## Dataset and limitations
 
 Source: [Console-AI/IT-helpdesk-synthetic-tickets](https://huggingface.co/datasets/Console-AI/IT-helpdesk-synthetic-tickets)
@@ -201,8 +217,9 @@ assumptions: the dataset does not supply a detailed labeling guide. Related issu
 can span categories, and valid structured output does not guarantee correct labels
 or factual summaries. No accuracy claim is made in Phase 1. Milestone 2A evaluates
 retrieval separately; milestone 2B keeps mechanical recommendation metrics separate
-from manual groundedness review. Phase 4A tests bounded graph behavior with
-scripted decisions; live planning and synthesis await Phase 4B approval. FastAPI,
+from manual groundedness review. Phase 4B.1 tests live-planner integration with
+mocked API responses; live model quality remains unmeasured and synthesis awaits
+Phase 4B.2 review. FastAPI,
 application containerization, and a frontend remain later work in
 [`PROJECT_BRIEF.md`](PROJECT_BRIEF.md).
 

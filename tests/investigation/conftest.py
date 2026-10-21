@@ -1,6 +1,9 @@
 from copy import deepcopy
 from pathlib import Path
+import json
 
+import httpx
+from openai import OpenAI
 import pytest
 
 from app.investigation.graph import Dependencies
@@ -53,3 +56,42 @@ def inv_dependencies(inv_request, inv_results):
         store=ReplayStore(spec, results), planner=ScriptedPlanner([{'kind': 'finish'}]),
         fixture_lookup=lambda tool, request: deepcopy(inv_results[tool]),
     )
+
+
+@pytest.fixture(autouse=True)
+def block_unmocked_http(monkeypatch):
+    """A forgotten mock must fail locally, never send a paid request."""
+    def blocked(*args, **kwargs):
+        raise AssertionError('Investigation tests forbid unmocked HTTP requests.')
+    monkeypatch.setattr(httpx.HTTPTransport, 'handle_request', blocked)
+
+
+@pytest.fixture
+def planner_response():
+    def body(decision=None, *, status='completed', refusal=False, empty=False, raw_text=None):
+        content = {'type': 'refusal', 'refusal': 'Cannot comply.'} if refusal else {
+            'type': 'output_text', 'annotations': [],
+            'text': raw_text if raw_text is not None else json.dumps({'decision': decision or {'kind': 'finish'}}),
+        }
+        return {
+            'id': 'resp_fixture', 'object': 'response', 'created_at': 0, 'model': 'test-model',
+            'status': status,
+            'output': [] if empty else [{'id': 'msg_fixture', 'type': 'message', 'role': 'assistant',
+                                         'status': 'completed', 'content': [content]}],
+            'incomplete_details': {'reason': 'max_output_tokens'} if status == 'incomplete' else None,
+            'parallel_tool_calls': False, 'tool_choice': 'auto', 'tools': [],
+        }
+    return body
+
+
+@pytest.fixture
+def planner_client():
+    clients = []
+    def create(handler, *, max_retries=0):
+        client = OpenAI(api_key='test-placeholder', max_retries=max_retries,
+                        http_client=httpx.Client(transport=httpx.MockTransport(handler)))
+        clients.append(client)
+        return client
+    yield create
+    for client in clients:
+        client.close()

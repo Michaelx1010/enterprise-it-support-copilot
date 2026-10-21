@@ -1,9 +1,9 @@
-"""Fixed graph with a bounded scripted decision loop. No synthesis in Phase 4A."""
+"""Fixed graph with a bounded planner decision loop. No synthesis."""
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import time
-from typing import Callable, Protocol, TypedDict
+from typing import Callable, Literal, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 from langgraph.runtime import Runtime
@@ -11,6 +11,7 @@ from langsmith import tracing_context
 from pydantic import BaseModel, ValidationError
 
 from app.classification import classify_ticket
+from app.investigation.planner import Planner, PlannerView
 from app.investigation.policy import TOOLS, PolicyError, validate_lookup, validate_result
 from app.investigation.schemas import (
     DECISION_ADAPTER, InvestigationRequest, InvestigationResult, KBEvidence,
@@ -26,18 +27,6 @@ from app.rag.recommendation import build_query, retrieve_ticket
 from app.schemas import TicketClassification
 
 
-class PlannerView(BaseModel):
-    request: InvestigationRequest
-    classification: TicketClassification | None
-    kb_evidence: list[KBEvidence]
-    operational_evidence: list[OperationalEvidence]
-    available_device_ids: list[str]
-
-
-class Planner(Protocol):
-    def decide(self, view: PlannerView, index: int) -> dict: ...
-
-
 @dataclass(frozen=True, repr=False)
 class Dependencies:
     classifier: ClassificationProvider
@@ -49,9 +38,11 @@ class Dependencies:
     fixture_lookup: Callable[[str, BaseModel], BaseModel | dict] | None = None
     limits: Limits = field(default_factory=Limits)
     clock: Callable[[], float] = time.monotonic
+    phase: Literal['4A', '4B.1'] = '4A'
 
 
 class InvestigationState(TypedDict):
+    phase: Literal['4A', '4B.1']
     request: InvestigationRequest
     started_at: datetime
     deadline: float
@@ -132,7 +123,10 @@ def plan_node(state: InvestigationState, runtime: Runtime[Dependencies]):
     update = {'planner_decisions': index + 1, 'decision': None, 'arguments': None}
     view = PlannerView(request=state['request'], classification=state['classification'],
                        kb_evidence=state['kb_evidence'], operational_evidence=state['operational_evidence'],
-                       available_device_ids=sorted(state['device_ids'])).model_copy(deep=True)
+                       available_device_ids=sorted(state['device_ids']),
+                       lookup_trace=state['lookup_trace'], errors=state['errors'],
+                       remaining_decisions=runtime.context.limits.planner_decisions - index,
+                       remaining_lookups=runtime.context.limits.lookup_attempts - state['lookup_attempts']).model_copy(deep=True)
     try:
         decision = DECISION_ADAPTER.validate_python(runtime.context.planner.decide(view, index))
     except Exception:
@@ -218,6 +212,7 @@ def assemble_node(state: InvestigationState, runtime: Runtime[Dependencies]):
     status = 'completed' if clean else ('partial' if usable else 'failed')
     trace = _event(state, 'assemble', status)
     result = InvestigationResult(
+        phase=state['phase'],
         status=status, stop_reason=state['stop_reason'] or 'graph_failed', started_at=state['started_at'],
         finished_at=datetime.now(timezone.utc), classification=state['classification'],
         kb_evidence=state['kb_evidence'], operational_evidence=state['operational_evidence'],
@@ -247,6 +242,7 @@ def run_investigation(request: InvestigationRequest, *, dependencies: Dependenci
     build_query(request.ticket)  # Reject oversized tickets before component calls.
     limits = Limits.model_validate(dependencies.limits.model_dump())
     state = InvestigationState(
+        phase=dependencies.phase,
         request=request, started_at=datetime.now(timezone.utc), deadline=dependencies.clock() + limits.elapsed_seconds,
         classification=None, kb_evidence=[], operational_evidence=[], lookup_trace=[], graph_trace=[], errors=[],
         missing_fields=[], device_ids=set(), seen=set(), planner_decisions=0, lookup_attempts=0,

@@ -1,5 +1,8 @@
 # Phase 4A: bounded, scripted investigation
 
+This guide records Phase 4A behavior. [Phase 4B.1](phase4b1.md) now adds a live
+planner and an explicit live CLI command; the scripted modes below are preserved.
+
 Phase 4A implements a local, read-only LangGraph workflow. It gathers and validates
 evidence; it does **not** generate an investigation recommendation. Both CLI modes
 use a supplied classification, a supplied query vector and scripted decisions.
@@ -299,14 +302,14 @@ equivalent timestamp filters to UTC so they cannot bypass deduplication.
 
 ## Phase 4B boundary and design choices
 
-The approved LLM-driven loop is represented by a small planner protocol, but only
-the scripted implementation is connected. No synthesis adapter, synthesis prompt
-or recommendation evaluation change has been introduced. The Phase 2B.1 schemas,
-prompts, evaluation data and reporting behavior are untouched.
+At Phase 4A completion, the approved LLM-driven loop was represented by a small
+planner protocol with only the scripted implementation connected. Phase 4B.1 now
+adds the live planner through that interface; see the linked guide. No synthesis
+adapter, synthesis prompt or recommendation evaluation change has been introduced.
+The Phase 2B.1 schemas, prompts, evaluation data and reporting behavior are untouched.
 
-Before Phase 4B, review this milestone. A subsequent approved implementation can
-add an isolated Structured Outputs planner, then a separately validated synthesis
-adapter. The same deterministic gate must remain authoritative. Operational
+After review of Phase 4B.1, a separately approved Phase 4B.2 can add a validated
+synthesis adapter. The same deterministic gate must remain authoritative. Operational
 observations and documented procedures must have separate typed references;
 operational records cannot authorize undocumented troubleshooting, and valid
 citation IDs cannot establish that a source supports a claim. Both summaries and
