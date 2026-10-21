@@ -1,0 +1,184 @@
+{
+  "request": {
+    "ticket": {
+      "subject": "VPN cannot connect",
+      "description": "The connection fails after sign in."
+    },
+    "employee_id": "EMP-001",
+    "service_ids": [
+      "SVC-001"
+    ],
+    "software_ids": []
+  },
+  "classification": {
+    "category": "Network",
+    "priority": "Medium",
+    "summary": "VPN connection fails after sign in."
+  },
+  "decisions": [
+    {
+      "kind": "lookup",
+      "tool": "get_employee_devices",
+      "arguments": {
+        "employee_id": "EMP-001"
+      }
+    },
+    {
+      "kind": "lookup",
+      "tool": "get_device_details",
+      "arguments": {
+        "device_id": "DEV-001"
+      }
+    },
+    {
+      "kind": "finish"
+    }
+  ],
+  "embedding_spec": {
+    "provider": "fixture",
+    "model": "replay-v1",
+    "dimensions": 3
+  },
+  "query_vector": [
+    1.0,
+    0.0,
+    0.0
+  ],
+  "kb_results": [
+    {
+      "chunk": {
+        "chunk_id": "a2092fb728a33ddb73da01ffaefb260ab67e51eaf0a16a028b764a595ccbc81e",
+        "document_id": "vpn-access",
+        "source_path": "vpn-access.md",
+        "title": "VPN access",
+        "section_id": "vpn-access#connection-failures",
+        "section_path": "Connection failures",
+        "chunk_index": 0,
+        "content": "Use Northstar Connect on a managed laptop to reach internal services from home. First confirm that a public website loads without the VPN. If it does not, follow the Wi-Fi connection procedure. Select the Corporate gateway and reconnect once. Record the error code and time if the tunnel still fails. Do not disable endpoint protection or install a personal VPN client. Escalate persistent gateway errors to Network Support with the client version and error code.",
+        "content_hash": "551b3055d78cc1bef6309dcdee4ee3db664056eeedd3c06b1ad8ba29a5e46857"
+      },
+      "distance": 0.0
+    },
+    {
+      "chunk": {
+        "chunk_id": "9a7565d07f95487bdeecfb4140e17cf032d3f3520ba04d388940669dba560d3a",
+        "document_id": "vpn-access",
+        "source_path": "vpn-access.md",
+        "title": "VPN access",
+        "section_id": "vpn-access#authentication-failures",
+        "section_path": "Authentication failures",
+        "chunk_index": 1,
+        "content": "The VPN uses the same company password and MFA as the identity portal. If the password was recently changed, remove the saved credential from Northstar Connect and sign in again. A missing or replaced authenticator belongs to the MFA recovery process, not a VPN client reinstall. If multiple applications reject the same credentials, follow the account-lockout checks. Never approve an unexpected MFA request.",
+        "content_hash": "6a6b05cc1f02ce08e6f7bc0f8cacccb3bee8c03f7f7d7fd49ac19de24b367847"
+      },
+      "distance": 0.25
+    },
+    {
+      "chunk": {
+        "chunk_id": "a8c0b0ae13d17d96baf8446f5b818f931e479eb07de1692d224ce843932c026c",
+        "document_id": "vpn-access",
+        "source_path": "vpn-access.md",
+        "title": "VPN access",
+        "section_id": "vpn-access#connected-but-resources-unavailable",
+        "section_path": "Connected but resources unavailable",
+        "chunk_index": 2,
+        "content": "When the VPN shows Connected but internal sites cannot be reached, check the gateway is Corporate and capture the affected internal hostname. Disconnect and reconnect once to refresh the tunnel routes. If internal sites work but one shared folder reports Access denied, request folder permission from its owner; a working tunnel does not grant access rights. Send widespread internal-hostname failures to Network Support. Do not change DNS servers manually.",
+        "content_hash": "d7fc6f4f829ef4dc4db1c601124e233f0d35d380cc8430bbd724fa8b6ffe8c62"
+      },
+      "distance": 0.5
+    }
+  ],
+  "lookup_results": [
+    {
+      "tool": "get_employee_devices",
+      "arguments": {
+        "employee_id": "EMP-001"
+      },
+      "result": {
+        "status": "ok",
+        "missing_entities": [],
+        "queried_at": "2026-10-21T08:00:00Z",
+        "employee": {
+          "employee_id": "EMP-001",
+          "display_name": "Maya Chen",
+          "department": "Finance",
+          "manager_id": null,
+          "employment_status": "active",
+          "updated_at": "2026-10-16T08:00:00Z"
+        },
+        "devices": [
+          {
+            "device_id": "DEV-001",
+            "asset_tag": "NS-0001",
+            "assigned_employee_id": "EMP-001",
+            "device_type": "laptop",
+            "model": "Northstar Demo Laptop",
+            "os_name": "Windows",
+            "os_version": "11-demo",
+            "lifecycle_status": "active",
+            "compliance_status": "compliant",
+            "vpn_client_version": "5.2-demo",
+            "last_seen_at": "2026-10-16T08:00:00Z",
+            "created_at": "2026-09-01T08:00:00Z",
+            "updated_at": "2026-10-16T08:00:00Z"
+          },
+          {
+            "device_id": "DEV-010",
+            "asset_tag": "NS-0010",
+            "assigned_employee_id": "EMP-001",
+            "device_type": "phone",
+            "model": "Northstar Demo Phone",
+            "os_name": "Mobile OS",
+            "os_version": "18-demo",
+            "lifecycle_status": "active",
+            "compliance_status": "unknown",
+            "vpn_client_version": null,
+            "last_seen_at": "2026-09-20T08:00:00Z",
+            "created_at": "2026-09-01T08:00:00Z",
+            "updated_at": "2026-10-16T08:00:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "tool": "get_device_details",
+      "arguments": {
+        "device_id": "DEV-001"
+      },
+      "result": {
+        "status": "ok",
+        "missing_entities": [],
+        "queried_at": "2026-10-21T08:00:00Z",
+        "device": {
+          "device_id": "DEV-001",
+          "asset_tag": "NS-0001",
+          "assigned_employee_id": "EMP-001",
+          "device_type": "laptop",
+          "model": "Northstar Demo Laptop",
+          "os_name": "Windows",
+          "os_version": "11-demo",
+          "lifecycle_status": "active",
+          "compliance_status": "compliant",
+          "vpn_client_version": "5.2-demo",
+          "last_seen_at": "2026-10-16T08:00:00Z",
+          "created_at": "2026-09-01T08:00:00Z",
+          "updated_at": "2026-10-16T08:00:00Z"
+        },
+        "owner": {
+          "employee_id": "EMP-001",
+          "display_name": "Maya Chen",
+          "department": "Finance",
+          "manager_id": null,
+          "employment_status": "active",
+          "updated_at": "2026-10-16T08:00:00Z"
+        }
+      }
+    }
+  ],
+  "limits": {
+    "planner_decisions": 4,
+    "lookup_attempts": 4,
+    "elapsed_seconds": 120.0,
+    "operational_characters": 24000
+  }
+}

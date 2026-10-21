@@ -19,6 +19,11 @@ investigation tools. They expose recorded account, device, entitlement, ticket,
 and incident facts without calling an LLM. See [the Phase 3 guide](docs/phase3.md)
 for setup, restricted reader provisioning, CLI contracts, timestamps, and limits.
 
+Phase 4A adds a bounded LangGraph investigation workflow with scripted decisions,
+deterministic tool scope, typed evidence, and partial-result handling. It gathers
+evidence locally without a live planner or synthesis model. See
+[the Phase 4A guide](docs/phase4.md) for the graph, CLI, limits and tests.
+
 ## Setup
 
 Requires Python 3.11 or newer. From the repository root:
@@ -38,8 +43,9 @@ The examples below use Windows PowerShell and the virtual environment directly,
 so activating it is optional. On macOS/Linux, use `.venv/bin/python` instead.
 
 Dependencies are Pydantic (schemas), pandas (ticket exploration), the OpenAI SDK
-(initial provider), psycopg and pgvector (KB storage), and pytest (development
-tests). Phase 1 commands do not require a running database.
+(initial provider), psycopg and pgvector (KB storage), LangGraph (investigation
+workflow), and pytest (development tests). Phase 1 commands do not require a
+running database.
 
 ## Download and inspect the data
 
@@ -164,6 +170,20 @@ escalation was issued, **not** that escalation is unnecessary or the issue is sa
 Citation validation checks source membership, not whether the cited text supports
 the action. Summary groundedness and content correctness still need manual review.
 
+## Run a scripted investigation
+
+```powershell
+uv run --locked python -m app.cli investigate scripted --script examples/investigation-scripted.json
+```
+
+This offline example replays classification, query embedding, KB rankings and
+lookup fixtures through the graph. PostgreSQL mode uses real retrieval and the
+six original tools with separate restricted KB/ops credentials; see the Phase 4A
+guide. Output separates lookup attempts from `mutating_actions_executed=false`,
+preserves source metadata and reports `completed`, `partial` or `failed`.
+`human_review_required=true` is an indicator, not an implemented approval workflow.
+Recommendation generation remains unconnected in Phase 4A.
+
 ## Dataset and limitations
 
 Source: [Console-AI/IT-helpdesk-synthetic-tickets](https://huggingface.co/datasets/Console-AI/IT-helpdesk-synthetic-tickets)
@@ -181,7 +201,8 @@ assumptions: the dataset does not supply a detailed labeling guide. Related issu
 can span categories, and valid structured output does not guarantee correct labels
 or factual summaries. No accuracy claim is made in Phase 1. Milestone 2A evaluates
 retrieval separately; milestone 2B keeps mechanical recommendation metrics separate
-from manual groundedness review. LangGraph, FastAPI,
+from manual groundedness review. Phase 4A tests bounded graph behavior with
+scripted decisions; live planning and synthesis await Phase 4B approval. FastAPI,
 application containerization, and a frontend remain later work in
 [`PROJECT_BRIEF.md`](PROJECT_BRIEF.md).
 

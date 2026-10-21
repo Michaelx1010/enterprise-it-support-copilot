@@ -34,6 +34,9 @@ def main(argv: list[str] | None = None) -> int:
     from app.operations.cli import add_commands as add_ops_commands, run as run_ops
 
     add_ops_commands(commands)
+    from app.investigation.cli import add_commands as add_investigation_commands, run as run_investigation
+
+    add_investigation_commands(commands)
     args = parser.parse_args(argv)
 
     if args.command == "kb":
@@ -42,6 +45,8 @@ def main(argv: list[str] | None = None) -> int:
         return run_rag(args)
     if args.command == "ops":
         return run_ops(args)
+    if args.command == "investigate":
+        return run_investigation(args)
 
     try:
         if args.command == "download":
