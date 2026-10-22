@@ -3,7 +3,9 @@
 Phase 4B.1 connects an OpenAI planner to the existing Phase 4A graph. The model
 chooses one of the six operational lookups, observes the validated result, then
 chooses another lookup, `finish`, or `clarify`. The scripted planner remains
-available. No recommendation or synthesis model is connected.
+available. This guide records the planning milestone; without the new optional
+`--synthesize` flag it still makes no synthesis request. See
+[Phase 4B.2](phase4b2.md) for the separately configured advisory report.
 
 ## Plan review and adjustments
 

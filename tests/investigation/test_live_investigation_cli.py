@@ -110,3 +110,39 @@ def test_construction_failure_closes_client(request_file, live_boundaries, plann
     assert main(['investigate', 'live', '--request', str(request_file)]) == 1
     assert client.is_closed()
     assert json.loads(capsys.readouterr().err)['error']['code'] == 'investigation_setup_failed'
+
+
+@pytest.mark.parametrize('outcome', ['supported', 'clarify', 'failure', 'invalid_citation'])
+def test_opt_in_synthesis_cli(request_file, live_boundaries, planner_client, planner_response,
+                             synthesis_report, monkeypatch, capsys, outcome):
+    models = []
+    def handler(request):
+        body = json.loads(request.content)
+        models.append(body['model'])
+        if request.url.path.endswith('/embeddings'):
+            return httpx.Response(200, json={'object': 'list', 'data': [{'object': 'embedding', 'index': 0, 'embedding': [1.] + [0.] * 1535}], 'model': 'text-embedding-3-small', 'usage': {'prompt_tokens': 1, 'total_tokens': 1}})
+        name = body['text']['format']['name']
+        if name == 'TicketClassification':
+            return httpx.Response(200, json=planner_response(raw_text=json.dumps({'category': 'Network', 'priority': 'Medium', 'summary': 'VPN cannot connect.'})))
+        if name == 'PlannerResponse':
+            decision = {'kind': 'clarify', 'missing_fields': ['ticket_details']} if outcome == 'clarify' else {'kind': 'finish'}
+            return httpx.Response(200, json=planner_response(decision))
+        assert name == 'InvestigationSynthesis' and body['model'] == 'independent-synthesis'
+        if outcome == 'failure': return httpx.Response(500, json={'error': {'message': 'CANARY', 'type': 'api_error'}})
+        if outcome == 'invalid_citation': synthesis_report['steps'][0]['references'][0]['chunk_id'] = 'fake'
+        return httpx.Response(200, json=planner_response(raw_text=json.dumps(synthesis_report)))
+    client = planner_client(handler)
+    monkeypatch.setattr(OpenAIPlanner, 'from_environment', Mock(return_value=OpenAIPlanner(client, model='planner-only')))
+    monkeypatch.setenv('OPENAI_SYNTHESIS_MODEL', 'independent-synthesis')
+    code = main(['investigate', 'live', '--request', str(request_file), '--synthesize'])
+    output = capsys.readouterr()
+    data = json.loads(output.out)
+    result = data['result']
+    assert data['synthesis_model'] == 'independent-synthesis' and result['phase'] == '4B.2'
+    assert result['planner_decisions'] == 1 and result['lookup_attempts'] == 0
+    assert code == (2 if outcome in ('failure', 'invalid_citation') else 0)
+    assert result['synthesis_attempts'] == (0 if outcome == 'clarify' else 1)
+    assert models.count('independent-synthesis') == (0 if outcome == 'clarify' else 1)
+    assert len(models) == (3 if outcome == 'clarify' else 4)
+    assert (result['recommendation'] is None) == (outcome in ('failure', 'invalid_citation'))
+    assert client.is_closed() and 'CANARY' not in output.out + output.err

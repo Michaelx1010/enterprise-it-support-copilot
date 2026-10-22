@@ -1,4 +1,4 @@
-"""Fixed graph with a bounded planner decision loop. No synthesis."""
+"""Fixed bounded investigation, optionally followed by one advisory synthesis."""
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -17,12 +17,15 @@ from app.investigation.schemas import (
     DECISION_ADAPTER, InvestigationRequest, InvestigationResult, KBEvidence,
     KBReference, Limits, LookupDecision, LookupOutcome, ObservationReference,
     OperationalEvidence, RunError, TraceEvent,
+    InvestigationSynthesis,
 )
+from app.investigation.synthesis import abstention, build_payload, generate_synthesis, MAX_PAYLOAD_CHARACTERS
 from app.kb.schemas import SearchResult
 from app.kb.store import PgvectorStore
 from app.operations.db import OperationalDB
 from app.providers.base import ClassificationProvider
 from app.providers.embeddings import EmbeddingProvider
+from app.providers.synthesis import SynthesisProvider, SynthesisError
 from app.rag.recommendation import build_query, retrieve_ticket
 from app.schemas import TicketClassification
 
@@ -39,10 +42,11 @@ class Dependencies:
     limits: Limits = field(default_factory=Limits)
     clock: Callable[[], float] = time.monotonic
     phase: Literal['4A', '4B.1'] = '4A'
+    synthesis: SynthesisProvider | None = None
 
 
 class InvestigationState(TypedDict):
-    phase: Literal['4A', '4B.1']
+    phase: Literal['4A', '4B.1', '4B.2']
     request: InvestigationRequest
     started_at: datetime
     deadline: float
@@ -62,6 +66,9 @@ class InvestigationState(TypedDict):
     arguments: dict | None
     stop_reason: str | None
     result: InvestigationResult | None
+    synthesis_status: Literal['not_run', 'completed', 'failed', 'skipped']
+    synthesis_attempts: int
+    recommendation: InvestigationSynthesis | None
 
 
 def _event(state, node, outcome, lookup_id=None):
@@ -206,6 +213,50 @@ def execute_node(state: InvestigationState, runtime: Runtime[Dependencies]):
     return update
 
 
+def synthesize_node(state: InvestigationState, runtime: Runtime[Dependencies]):
+    def failure(code, *, attempts=0, skipped=False):
+        return {'synthesis_status': 'skipped' if skipped else 'failed',
+                'synthesis_attempts': attempts, 'recommendation': None,
+                'errors': _error(state, 'synthesis', 'synthesis_' + code),
+                'graph_trace': _event(state, 'synthesize', code)}
+
+    if runtime.context.clock() >= state['deadline']:
+        return failure('deadline', skipped=True)
+    if state['stop_reason'] == 'context_budget':
+        return failure('context_limit', skipped=True)
+    if state['stop_reason'] == 'clarify':
+        report = abstention('The investigation requires clarification before recommending actions.',
+                            ['Clarification needed: ' + field for field in state['missing_fields']])
+        return {'synthesis_status': 'completed', 'recommendation': report,
+                'graph_trace': _event(state, 'synthesize', 'clarification_abstention')}
+    if not state['kb_evidence']:
+        report = abstention('No KB procedures are available to support recommendations.',
+                            ['Applicable documentation is needed.'])
+        return {'synthesis_status': 'completed', 'recommendation': report,
+                'graph_trace': _event(state, 'synthesize', 'no_kb_abstention')}
+    # Serialize a fresh evidence snapshot; the provider cannot mutate graph state.
+    payload = build_payload(state['request'], state['kb_evidence'], state['operational_evidence'],
+                            stop_reason=state['stop_reason'], errors=state['errors'],
+                            missing_fields=state['missing_fields'])
+    if len(payload) > MAX_PAYLOAD_CHARACTERS:
+        return failure('context_limit', skipped=True)
+    try:
+        report = generate_synthesis(payload,
+            kb_ids={e.reference.chunk_id for e in state['kb_evidence']},
+            lookup_ids={e.reference.lookup_id for e in state['operational_evidence']},
+            provider=runtime.context.synthesis)
+    except Exception as exc:
+        # Fixed allowlisted codes only, even for substitute providers.
+        codes = {'provider_failure', 'invalid_output', 'invalid_citation', 'incomplete',
+                 'refusal', 'missing_output', 'missing_limitations', 'context_limit'}
+        code = exc.code if isinstance(exc, SynthesisError) and exc.code in codes else 'provider_failure'
+        return failure(code, attempts=1)
+    if runtime.context.clock() >= state['deadline']:
+        return failure('deadline', attempts=1)
+    return {'synthesis_status': 'completed', 'synthesis_attempts': 1, 'recommendation': report,
+            'graph_trace': _event(state, 'synthesize', 'accepted')}
+
+
 def assemble_node(state: InvestigationState, runtime: Runtime[Dependencies]):
     if runtime is not None and not state['errors'] and runtime.context.clock() >= state['deadline']:
         state = state | {'stop_reason': 'deadline', 'errors': _error(state, 'budget', 'deadline')}
@@ -221,20 +272,25 @@ def assemble_node(state: InvestigationState, runtime: Runtime[Dependencies]):
         lookup_trace=state['lookup_trace'], graph_trace=trace, errors=state['errors'],
         missing_fields=state['missing_fields'], planner_decisions=state['planner_decisions'],
         lookup_attempts=state['lookup_attempts'],
+        synthesis_status=state['synthesis_status'], synthesis_attempts=state['synthesis_attempts'],
+        recommendation=state['recommendation'],
     )
     return {'result': result, 'graph_trace': trace}
 
 
-def build_graph():
+def build_graph(*, synthesis: bool = False):
     graph = StateGraph(InvestigationState, context_schema=Dependencies)
     for name, node in [('validate', validate_node), ('classify', classify_node), ('retrieve', retrieve_node),
                        ('plan', plan_node), ('guard', guard_node), ('execute', execute_node), ('assemble', assemble_node)]:
         graph.add_node(name, node)
+    if synthesis:
+        graph.add_node('synthesize', synthesize_node)
+        graph.add_edge('synthesize', 'assemble')
     graph.add_edge(START, 'validate')
     graph.add_edge('validate', 'classify')
     for source, target in [('classify', 'retrieve'), ('retrieve', 'plan'), ('plan', 'guard'), ('guard', 'execute'), ('execute', 'plan')]:
         graph.add_conditional_edges(source, lambda state: 'stop' if state['stop_reason'] else 'continue',
-                                    {'stop': 'assemble', 'continue': target})
+                                    {'stop': 'synthesize' if synthesis else 'assemble', 'continue': target})
     graph.add_edge('assemble', END)
     return graph.compile()  # No persistence, checkpointer, interrupt or approval workflow.
 
@@ -244,16 +300,18 @@ def run_investigation(request: InvestigationRequest, *, dependencies: Dependenci
     build_query(request.ticket)  # Reject oversized tickets before component calls.
     limits = Limits.model_validate(dependencies.limits.model_dump())
     state = InvestigationState(
-        phase=dependencies.phase,
+        phase='4B.2' if dependencies.synthesis is not None else dependencies.phase,
         request=request, started_at=datetime.now(timezone.utc), deadline=dependencies.clock() + limits.elapsed_seconds,
         classification=None, kb_evidence=[], operational_evidence=[], lookup_trace=[], graph_trace=[], errors=[],
         missing_fields=[], device_ids=set(), seen=set(), planner_decisions=0, lookup_attempts=0,
         operational_characters=0, decision=None, arguments=None, stop_reason=None, result=None,
+        synthesis_status='not_run', synthesis_attempts=0, recommendation=None,
     )
     # Disable external tracing even if a shell has LangSmith tracing enabled.
     with tracing_context(enabled=False):
         try:
-            for current in build_graph().stream(state, context=dependencies, config={'recursion_limit': 32}, stream_mode='values'):
+            graph = build_graph() if dependencies.synthesis is None else build_graph(synthesis=True)
+            for current in graph.stream(state, context=dependencies, config={'recursion_limit': 32}, stream_mode='values'):
                 state = current
         except Exception:
             state = state | {'stop_reason': 'graph_failed', 'errors': _error(state, 'assembly', 'graph_failed')}

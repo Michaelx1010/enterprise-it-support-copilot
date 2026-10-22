@@ -2,6 +2,7 @@
 
 This guide records Phase 4A behavior. [Phase 4B.1](phase4b1.md) now adds a live
 planner and an explicit live CLI command; the scripted modes below are preserved.
+[Phase 4B.2](phase4b2.md) adds optional synthesis after the investigation loop.
 
 Phase 4A implements a local, read-only LangGraph workflow. It gathers and validates
 evidence; it does **not** generate an investigation recommendation. Both CLI modes

@@ -95,3 +95,19 @@ def planner_client():
     yield create
     for client in clients:
         client.close()
+
+
+@pytest.fixture
+def synthesis_report(inv_dependencies):
+    chunk = inv_dependencies.store.results[0].chunk
+    return {
+        'status': 'supported',
+        'summary': {'text': 'The ticket reports a VPN connection failure.', 'references': [{'kind': 'ticket'}]},
+        'findings': [],
+        'steps': [{'step_type': 'troubleshooting', 'action': chunk.content.split('. ')[0] + '.',
+                   'references': [{'kind': 'kb_chunk', 'chunk_id': chunk.chunk_id}]}],
+        'missing_information': [],
+        'uncertainties': [{'text': 'Recorded snapshots are not live verification. Incomplete evidence requires human review.',
+                           'references': [{'kind': 'investigation_context'}]}],
+        'escalation_required': False, 'escalation_reason': None,
+    }

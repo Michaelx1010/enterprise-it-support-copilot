@@ -1,4 +1,4 @@
-"""Explicit offline/scripted and live developer commands; neither synthesizes answers."""
+"""Scripted replay and explicit live planning with opt-in advisory synthesis."""
 
 import argparse
 import json
@@ -15,6 +15,7 @@ def add_commands(commands: argparse._SubParsersAction):
     run.add_argument('--backend', choices=['fixture', 'postgres'], default='fixture')
     live = sub.add_parser('live', help='Paid OpenAI planning, classification and embeddings with restricted PostgreSQL readers.')
     live.add_argument('--request', type=Path, required=True, help='JSON InvestigationRequest with explicit identifier scope.')
+    live.add_argument('--synthesize', action='store_true', help='Phase 4B.2: add at most one paid grounded synthesis request.')
     setup = sub.add_parser('provision-kb-reader', help='Admin bootstrap only: create KB-only read credentials.')
     setup.add_argument('--env-file', type=Path, default=Path('.env.kb'))
 
@@ -38,14 +39,21 @@ def _run_live(args: argparse.Namespace) -> int:
     planner = OpenAIPlanner.from_environment()
     # Reuse existing provider implementations with a shared, zero-retry client.
     with planner.client as client:
+        synthesis = None
+        if args.synthesize:
+            from app.providers.openai_synthesis import OpenAISynthesis
+
+            synthesis = OpenAISynthesis.from_environment(client)
         dependencies = Dependencies(
             classifier=OpenAIProvider(client, model=os.getenv('OPENAI_MODEL', CLASSIFICATION_MODEL)),
             embedder=OpenAIEmbeddings(client, model=os.getenv('OPENAI_EMBEDDING_MODEL', 'text-embedding-3-small')),
-            store=store, db=db, planner=planner, phase='4B.1',
+            store=store, db=db, planner=planner, phase='4B.1', synthesis=synthesis,
         )
         result = run_investigation(request, dependencies=dependencies)
     print(json.dumps({'backend': 'postgres', 'planner': 'openai', 'planner_model': planner.model,
                       'classification': 'openai', 'query_embedding': 'openai',
+                      'synthesis': 'openai' if synthesis else None,
+                      'synthesis_model': synthesis.model if synthesis else None,
                       'result': result.model_dump(mode='json')}, indent=2))
     return 0 if result.status == 'completed' else (2 if result.status == 'partial' else 1)
 

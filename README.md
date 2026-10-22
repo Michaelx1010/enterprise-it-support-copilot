@@ -26,8 +26,10 @@ evidence locally without a live planner or synthesis model. See
 
 Phase 4B.1 connects an OpenAI Structured Outputs planner to the same guarded loop.
 The model selects read-only lookups using returned evidence, then finishes or
-requests clarification. See [the live planner guide](docs/phase4b1.md). Final
-recommendation synthesis remains deferred to Phase 4B.2.
+requests clarification. See [the live planner guide](docs/phase4b1.md).
+Phase 4B.2 adds opt-in investigation synthesis: a structured advisory report citing
+KB procedures and operational observations separately, with abstention and failure
+handling. See [the synthesis guide](docs/phase4b2.md). All new model tests use mocked responses.
 
 ## Setup
 
@@ -200,6 +202,25 @@ uv run --locked --env-file .env --env-file .env.ops --env-file .env.kb python -m
 `OPENAI_PLANNER_MODEL` independently configures the planner. All automated planner
 tests use mocked API responses, including the tests against real PostgreSQL.
 
+To add a grounded advisory report, opt in to at most one additional paid request:
+
+```powershell
+uv run --locked --env-file .env --env-file .env.ops --env-file .env.kb python -m app.cli investigate live --request examples/investigation-request.json --synthesize
+```
+
+`OPENAI_SYNTHESIS_MODEL` independently configures synthesis. Summaries, findings,
+steps and escalation reasons carry typed references; every action needs KB support.
+The report preserves observations and source metadata in the outer result. Unknown
+references are rejected, but source membership does not establish claim correctness.
+Reports remain advisory and require human review. No action or escalation is executed.
+
+The small synthesis evaluation is an offline response replay with deliberate negative
+controls, not a measurement of live model quality:
+
+```powershell
+uv run --locked python -m evaluation.investigation_synthesis
+```
+
 ## Dataset and limitations
 
 Source: [Console-AI/IT-helpdesk-synthetic-tickets](https://huggingface.co/datasets/Console-AI/IT-helpdesk-synthetic-tickets)
@@ -218,8 +239,8 @@ can span categories, and valid structured output does not guarantee correct labe
 or factual summaries. No accuracy claim is made in Phase 1. Milestone 2A evaluates
 retrieval separately; milestone 2B keeps mechanical recommendation metrics separate
 from manual groundedness review. Phase 4B.1 tests live-planner integration with
-mocked API responses; live model quality remains unmeasured and synthesis awaits
-Phase 4B.2 review. FastAPI,
+mocked API responses. Phase 4B.2 adds synthesis with citation validation and manual
+content-review rubrics; live synthesis quality remains unmeasured. FastAPI,
 application containerization, and a frontend remain later work in
 [`PROJECT_BRIEF.md`](PROJECT_BRIEF.md).
 

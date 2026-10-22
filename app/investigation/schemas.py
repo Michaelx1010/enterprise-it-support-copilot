@@ -2,7 +2,7 @@
 
 from typing import Annotated, Literal, Self
 
-from pydantic import AwareDatetime, Field, TypeAdapter, model_validator
+from pydantic import AwareDatetime, Field, StrictBool, TypeAdapter, model_validator
 
 from app.kb.schemas import SearchResult
 from app.operations.records import EmployeeID, ServiceID, SoftwareID, Model
@@ -11,6 +11,7 @@ from app.operations.schemas import (
     SoftwareEntitlementResult, RecentTicketsResult, ActiveIncidentsResult,
 )
 from app.schemas import TicketClassification, TicketInput
+from app.rag.schemas import SupportRecommendation, Text
 
 ToolName = Literal[
     'get_employee_account_status', 'get_employee_devices', 'get_device_details',
@@ -129,18 +130,103 @@ class LookupOutcome(Model):
 
 
 class RunError(Model):
-    stage: Literal['classification', 'retrieval', 'planner', 'guard', 'lookup', 'assembly', 'budget']
+    stage: Literal['classification', 'retrieval', 'planner', 'guard', 'lookup', 'assembly', 'budget', 'synthesis']
     code: str
 
 
 class TraceEvent(Model):
-    node: Literal['validate', 'classify', 'retrieve', 'plan', 'guard', 'execute', 'assemble']
+    node: Literal['validate', 'classify', 'retrieve', 'plan', 'guard', 'execute', 'assemble', 'synthesize']
     outcome: str
     lookup_id: str | None = None
 
 
+class SynthesisKBReference(KBReference):
+    kind: Literal['kb_chunk']
+
+
+class SynthesisObservationReference(ObservationReference):
+    kind: Literal['operational_observation']
+
+
+class TicketReference(Model):
+    kind: Literal['ticket']
+
+
+class ContextReference(Model):
+    kind: Literal['investigation_context']
+
+
+# Plain nested union produces anyOf for OpenAI Structured Outputs, not oneOf.
+SynthesisReference = SynthesisKBReference | SynthesisObservationReference | TicketReference | ContextReference
+
+
+class CitedStatement(Model):
+    text: Text
+    references: list[SynthesisReference] = Field(min_length=1, max_length=8)
+
+    @model_validator(mode='after')
+    def unique_references(self) -> Self:
+        keys = [r.model_dump_json() for r in self.references]
+        if len(keys) != len(set(keys)):
+            raise ValueError('References must be unique.')
+        return self
+
+
+class InvestigationStep(Model):
+    step_type: Literal['troubleshooting', 'escalation']
+    action: Text
+    references: list[SynthesisReference] = Field(min_length=1, max_length=8)
+
+    @model_validator(mode='after')
+    def requires_documented_procedure(self) -> Self:
+        CitedStatement(text=self.action, references=self.references)
+        if not any(isinstance(ref, KBReference) for ref in self.references):
+            raise ValueError('Every action requires a documented KB procedure.')
+        return self
+
+
+class InvestigationSynthesis(Model):
+    status: Literal['supported', 'insufficient_evidence']
+    summary: CitedStatement
+    findings: list[CitedStatement] = Field(max_length=8)
+    steps: list[InvestigationStep] = Field(max_length=6)
+    missing_information: list[Text] = Field(max_length=5)
+    uncertainties: list[CitedStatement] = Field(max_length=8)
+    escalation_required: StrictBool
+    escalation_reason: CitedStatement | None
+
+    @model_validator(mode='after')
+    def reuse_recommendation_contract(self) -> Self:
+        # Reuse Phase 2B.1 status/steps, escalation typing, reason and text rules.
+        SupportRecommendation.model_validate({
+            'status': self.status, 'summary': self.summary.text,
+            'steps': [{'step_type': s.step_type, 'action': s.action,
+                       'supporting_chunk_ids': [r.chunk_id for r in s.references if isinstance(r, KBReference)]}
+                      for s in self.steps],
+            'missing_information': self.missing_information,
+            'escalation_required': self.escalation_required,
+            'escalation_reason': self.escalation_reason.text if self.escalation_reason else None,
+        })
+        if self.escalation_reason and not any(isinstance(r, KBReference) for r in self.escalation_reason.references):
+            raise ValueError('Escalation requires documented support in its reason.')
+        return self
+
+    def cited_items(self) -> list[CitedStatement | InvestigationStep]:
+        items = [self.summary, *self.findings, *self.steps, *self.uncertainties]
+        return items + ([self.escalation_reason] if self.escalation_reason else [])
+
+
+def validate_synthesis_references(report: InvestigationSynthesis, kb_ids: set[str], lookup_ids: set[str]) -> None:
+    for item in report.cited_items():
+        for ref in item.references:
+            if isinstance(ref, KBReference) and ref.chunk_id not in kb_ids:
+                raise ValueError('invalid_citation')
+            if isinstance(ref, ObservationReference) and ref.lookup_id not in lookup_ids:
+                raise ValueError('invalid_citation')
+
+
 class InvestigationResult(Model):
-    phase: Literal['4A', '4B.1'] = '4A'
+    phase: Literal['4A', '4B.1', '4B.2'] = '4A'
     status: Literal['completed', 'partial', 'failed']
     stop_reason: str
     started_at: AwareDatetime
@@ -156,8 +242,9 @@ class InvestigationResult(Model):
     lookup_attempts: int
     human_review_required: Literal[True] = True
     mutating_actions_executed: Literal[False] = False
-    synthesis_status: Literal['not_run'] = 'not_run'
-    recommendation: None = None
+    synthesis_status: Literal['not_run', 'completed', 'failed', 'skipped'] = 'not_run'
+    synthesis_attempts: int = Field(default=0, ge=0, le=1, strict=True)
+    recommendation: InvestigationSynthesis | None = None
 
     @model_validator(mode='after')
     def valid_references(self) -> Self:
@@ -179,4 +266,8 @@ class InvestigationResult(Model):
                     raise ValueError('Lookup and observation mismatch.')
         if self.lookup_attempts != sum(t.executed for t in self.lookup_trace):
             raise ValueError('Lookup attempt count mismatch.')
+        if (self.synthesis_status == 'completed') != (self.recommendation is not None):
+            raise ValueError('Only completed synthesis may contain a recommendation.')
+        if self.recommendation:
+            validate_synthesis_references(self.recommendation, set(chunk_ids), set(ids))
         return self
