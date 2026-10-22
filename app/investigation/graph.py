@@ -11,7 +11,7 @@ from langsmith import tracing_context
 from pydantic import BaseModel, ValidationError
 
 from app.classification import classify_ticket
-from app.investigation.planner import Planner, PlannerView
+from app.investigation.planner import Planner, PlannerView, validate_clarification
 from app.investigation.policy import TOOLS, PolicyError, validate_lookup, validate_result
 from app.investigation.schemas import (
     DECISION_ADAPTER, InvestigationRequest, InvestigationResult, KBEvidence,
@@ -129,6 +129,8 @@ def plan_node(state: InvestigationState, runtime: Runtime[Dependencies]):
                        remaining_lookups=runtime.context.limits.lookup_attempts - state['lookup_attempts']).model_copy(deep=True)
     try:
         decision = DECISION_ADAPTER.validate_python(runtime.context.planner.decide(view, index))
+        if decision.kind == 'clarify':
+            validate_clarification(decision, state['request'])
     except Exception:
         return update | {'stop_reason': 'planner_failed', 'errors': _error(state, 'planner', 'planner_failed'),
                          'graph_trace': _event(state, 'plan', 'error')}

@@ -94,7 +94,8 @@ The user message is a JSON snapshot containing:
   operational observations, kept in distinct fields with their source metadata.
 
 Each call receives the latest snapshot. There is no server-side conversation ID
-or previous-response chain. The prompt version is `investigation-planner-v1`.
+or previous-response chain. The current prompt version is `investigation-planner-v2`
+(the initial milestone used `investigation-planner-v1`).
 Operational timestamps and `live_verified=false` remain visible. The model is
 instructed to treat all record prose, KB text and ticket content as data, and not
 to interpret historical resolutions as policy or old records as current facts.
@@ -214,3 +215,75 @@ smoke test/evaluation requires separate user approval and was not performed here
 No synthesis, final support recommendation, autonomous escalation, writes,
 persistence, approval workflow, web API or frontend was added. Phase 4B.2 remains
 separate work requiring review of this milestone first.
+
+## Smoke-test clarification correction (2026-10-22)
+
+The user supplied a real run of `examples/investigation-request.json`. It classified
+the VPN issue, retrieved three VPN chunks, looked up EMP-001's account and incidents
+for SVC-001, then returned all four clarification labels. It had used three planner
+decisions and two lookups. The run completed normally under the original rules;
+`completed` described a terminal graph path, not a correct or exhaustive investigation.
+
+Inspection and an offline replay identify the following:
+
+- `build_payload` includes employee/service/software scope and the full ticket on
+  every call. The third call also receives both observations and lookup outcomes,
+  with two remaining decisions (including the current one) and two remaining lookup
+  attempts. There is no detected loss of context or budget exhaustion. The supplied
+  report does not include raw API requests or reveal the model's reason for stopping.
+- `ClarifyDecision` checks only the enum labels and list length. Pydantic and the
+  strict response schema have no access to the investigation request, so the four
+  labels were schema-valid even though two directly contradicted supplied scope.
+  [Structured Outputs can still contain semantic mistakes](https://developers.openai.com/api/docs/guides/structured-outputs).
+- The v1 prompt said to clarify when relevant scope/details were missing but did
+  not explicitly distinguish absent optional scope from required information,
+  or ask the planner to consider useful untried lookups before clarification.
+  An empty device-ID list does not prevent listing the scoped employee's devices.
+- A supplied subject/description does not prove that all necessary symptom detail
+  is available. `ticket_details` can legitimately mean an additional error code or
+  other essential detail. It must not be rejected merely because text is present.
+
+The correction is deliberately small:
+
+1. The shared graph calls `validate_clarification` after decision-schema validation,
+   against the original application request (not the planner's copied view).
+   It rejects duplicate labels and any request for employee/service/software scope
+   that is already supplied. The entire contradictory decision is rejected; fields
+   are not silently removed and no lookup or finish decision is substituted.
+2. Prompt v2 explicitly defines optional scope, additional ticket detail, and
+   lookup-before-clarification behavior when useful and within the existing budget.
+   It illustrates device discovery without a device ID. It does not require all
+   six tools to run and introduces no keyword-based routing or new scope authority.
+3. Rejection follows the existing `planner_failed` path, with `partial` when evidence
+   exists and `failed` when none exists. Earlier evidence and lookup traces survive;
+   rejected labels are not presented as genuine missing information. There are no
+   retries, repair calls or extra decisions. The scripted planner and all decision
+   and result schemas remain unchanged; the same consistency check applies to every
+   planner, including scripts.
+
+The regression suite replays the exact bad clarification over mocked OpenAI HTTP
+responses and proves that it is schema-valid but context-inconsistent. Eight new
+checks failed before the application fix. Other checks cover each supplied scope
+field, duplicates, mixed valid/invalid labels, genuinely absent scope, empty optional
+scope, additional symptom detail, a planner attempting to alter its copied scope,
+and preservation of failure behavior without evidence. A separate mocked sequence
+demonstrates account -> incident -> devices -> finish within four decisions, without
+any software identifier. All existing safety, budget and scripted tests are retained.
+
+This is not a deterministic proof of relevance: the flat `missing_fields` schema
+does not explain which additional detail is needed or why an absent optional ID is
+relevant. Those judgments and the choice of useful lookups still belong to the model
+under the revised instructions. The application cannot infer them from arbitrary
+ticket text without adding a new contract or brittle routing rules. An irrelevant
+request for an actually absent field can therefore still pass. Mocked sequences
+test context, validation and orchestration, not live model compliance with the new
+prompt. A future user-authorized live evaluation must assess that remaining behavior.
+
+Verification after the correction: **405 passed in 36.51 seconds**, comprising
+the original 391 tests and 14 new offline regressions (**338 offline, 67 PostgreSQL
+integration**, no skips). API responses were mocked; no live OpenAI calls were
+made. Integration fixtures used only the separate disposable test database.
+Read-only before/after application snapshots confirmed all **79 operational rows
+and 36 KB chunks including vectors** were identical. No application initialization,
+reseeding or ingestion ran, and no temporary test reader roles remained. Changes
+were left uncommitted for review.

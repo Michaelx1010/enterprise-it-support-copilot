@@ -40,6 +40,20 @@ class PlannerError(RuntimeError):
         super().__init__('Investigation planner failed: ' + code)
 
 
+def validate_clarification(decision: ClarifyDecision, request: InvestigationRequest) -> None:
+    """Reject objective contradictions; relevance of absent fields is model judgment.
+
+    Use the application's original request, never the planner's mutable view.
+    A nonempty ticket can still lack essential detail such as an error code.
+    """
+    fields = decision.missing_fields
+    if len(fields) != len(set(fields)):
+        raise PlannerError('inconsistent_clarification')
+    for field in fields:
+        if field != 'ticket_details' and getattr(request, field):
+            raise PlannerError('inconsistent_clarification')
+
+
 class TicketLookupInput(RecentTicketsInput):
     limit: int = Field(ge=1, le=5, strict=True)
     since: AwareDatetime | None = Field(description='Inclusive timestamp with timezone, or null for no filter.')
@@ -95,7 +109,7 @@ class PlannerResponse(Model):
         return DECISION_ADAPTER.validate_python(self.decision.model_dump(mode='json')).model_dump(mode='json')
 
 
-PROMPT_VERSION = 'investigation-planner-v1'
+PROMPT_VERSION = 'investigation-planner-v2'
 INSTRUCTIONS = """Select exactly one next decision in a bounded, read-only IT investigation.
 Return only the structured decision envelope. Do not generate a recommendation,
 troubleshooting instructions, an escalation action, a diagnosis, or a rationale.
@@ -127,7 +141,35 @@ Missing child rows, not_found, stale or conflicting records must not be turned i
 invented facts. Component errors mean that evidence was unavailable, not negative.
 
 Use finish when further permitted lookups would not usefully inform human review.
-Use clarify with missing_fields when relevant scope or ticket details are missing.
+Before clarify, consider the ticket's requested investigation and untried permitted
+lookups against the observations already gathered. If a useful lookup can reduce
+uncertainty with the supplied scope, perform it first when remaining_lookups > 0
+and remaining_decisions > 1. Reserve a decision for finish or clarify. Do not run
+every tool merely because it is available, or repeat a lookup to fill the budget.
+An empty available_device_ids list does not block get_employee_devices: it needs
+only control.employee_id and can supply the eligible IDs for later device details.
+For example, when a ticket requests account, device and service investigation and
+only the account and service have been checked, consider get_employee_devices
+before asking the user for information that the permitted lookup can supply.
+
+Use clarify only for information genuinely needed to continue the relevant
+investigation and unavailable from useful permitted lookups. missing_fields is
+not a checklist of all possible inputs. Select only the fields actually needed,
+without duplicates, and compare them with the supplied request:
+- Never request employee_id if control.employee_id is already supplied.
+- Never request service_ids or software_ids if the corresponding list is nonempty.
+  Those lists are optional scope, not required completeness fields. An empty list
+  alone is not a reason to clarify. Request service_ids only if a relevant incident
+  lookup is blocked by absent service scope; software_ids only if a relevant
+  entitlement lookup is blocked by absent software scope. Do not expand scope.
+- ticket_details means additional essential symptom information absent from the
+  supplied subject/description and gathered evidence (for example, an unreported
+  error code), not that the existing ticket is missing. Do not ask for the subject
+  or description again, or use this label as a generic response to uncertainty.
+Missing optional identifiers unrelated to the issue must not prevent finish.
+Stale observations, not_found results and component errors do not make supplied
+identifiers missing. A clarification is not a replacement for recording limits
+or unavailable evidence; do not fabricate missing inputs to explain either.
 Do not ask for passwords, API keys, or unrelated employees' identities. Clarification
 ends this run; it is not an approval, pause, or resume mechanism. Finish does not
 mean resolved, safe, or that escalation is unnecessary. Human review is mandatory.
