@@ -109,7 +109,7 @@ class PlannerResponse(Model):
         return DECISION_ADAPTER.validate_python(self.decision.model_dump(mode='json')).model_dump(mode='json')
 
 
-PROMPT_VERSION = 'investigation-planner-v2'
+PROMPT_VERSION = 'investigation-planner-v3'
 INSTRUCTIONS = """Select exactly one next decision in a bounded, read-only IT investigation.
 Return only the structured decision envelope. Do not generate a recommendation,
 troubleshooting instructions, an escalation action, a diagnosis, or a rationale.
@@ -126,8 +126,12 @@ incidental relationships confer no additional scope or authorization.
 
 Choose among these six read-only lookups when relevant to the reported issue:
 - get_employee_account_status: recorded account/password/MFA state for the scoped employee.
-- get_employee_devices: recorded devices assigned to that employee; establishes eligible device IDs.
-- get_device_details: details of an already eligible device, including recorded compliance and version.
+- get_employee_devices: all recorded devices assigned to the employee, with full device fields
+  (OS/version, compliance, VPN client version, lifecycle, last_seen_at and record timestamps)
+  plus employee facts; establishes eligible device IDs, not just a list of identifiers.
+- get_device_details: re-reads one eligible device using the SAME device fields as
+  get_employee_devices, plus owner facts already present as employee facts in that list.
+  It does not provide deeper diagnostics or additional health checks.
 - check_software_entitlement: recorded software access/license information for an explicitly scoped product.
 - get_recent_support_tickets: historical context for that employee; use limit <=5 and since=null unless a time filter is useful.
 - get_active_service_incidents: recorded active incidents for one explicitly scoped service; use limit <=5.
@@ -140,6 +144,24 @@ state; queried_at and old event timestamps do not establish present conditions.
 Missing child rows, not_found, stale or conflicting records must not be turned into
 invented facts. Component errors mean that evidence was unavailable, not negative.
 
+Prioritize marginal information gain within the remaining decision budget. Compare
+what each permitted lookup can add with the actual fields and entities already
+observed, not just with tool names. Prefer new evidence relevant to an unresolved
+part of the ticket over another view of the same facts. Cover requested aspects
+when useful, but an explicitly scoped identifier makes a lookup permitted, not
+automatically relevant. Do not run all tools or follow a fixed topic-based order.
+After a successful device list, device details will usually repeat evidence.
+Consider it only for a specific unresolved discrepancy or a concrete reason to
+re-read the recorded state, such as a reported inventory correction. Old timestamps,
+unknown/null fields, or a newer queried_at alone do not justify a re-read or prove
+live verification; the detail tool cannot fill fields absent from the same record.
+An unchecked relevant service or entitlement can add different evidence; prefer
+that over redundant device details when it addresses the ticket's remaining gap.
+If only one lookup fits before the terminal decision, spend it on the greatest
+relevant information gain. Finish when further permitted calls would be redundant
+or unrelated. Do not spend the last decision on a lookup. Keep the existing scope,
+deduplication and budget rules even when a re-read might otherwise be useful.
+
 Use finish when further permitted lookups would not usefully inform human review.
 Before clarify, consider the ticket's requested investigation and untried permitted
 lookups against the observations already gathered. If a useful lookup can reduce
@@ -148,9 +170,8 @@ and remaining_decisions > 1. Reserve a decision for finish or clarify. Do not ru
 every tool merely because it is available, or repeat a lookup to fill the budget.
 An empty available_device_ids list does not block get_employee_devices: it needs
 only control.employee_id and can supply the eligible IDs for later device details.
-For example, when a ticket requests account, device and service investigation and
-only the account and service have been checked, consider get_employee_devices
-before asking the user for information that the permitted lookup can supply.
+Use the collected evidence to identify remaining relevant gaps before asking the
+user for information that a permitted lookup can supply.
 
 Use clarify only for information genuinely needed to continue the relevant
 investigation and unavailable from useful permitted lookups. missing_fields is

@@ -94,8 +94,8 @@ The user message is a JSON snapshot containing:
   operational observations, kept in distinct fields with their source metadata.
 
 Each call receives the latest snapshot. There is no server-side conversation ID
-or previous-response chain. The current prompt version is `investigation-planner-v2`
-(the initial milestone used `investigation-planner-v1`).
+or previous-response chain. The current prompt version is `investigation-planner-v3`
+(the initial milestone used v1 and the clarification correction used v2).
 Operational timestamps and `live_verified=false` remain visible. The model is
 instructed to treat all record prose, KB text and ticket content as data, and not
 to interpret historical resolutions as policy or old records as current facts.
@@ -287,3 +287,98 @@ Read-only before/after application snapshots confirmed all **79 operational rows
 and 36 KB chunks including vectors** were identical. No application initialization,
 reseeding or ingestion ran, and no temporary test reader roles remained. Changes
 were left uncommitted for review.
+
+## Investigation efficiency correction
+
+The user's second live smoke test completed with no errors: account -> device list
+-> device details -> finish. Direct comparison of its returned JSON showed the
+DEV-001 device record was identical in both device responses, as was the employee
+record versus the owner record. Only `queried_at` differed. This added no new
+recorded facts and did not verify live state. The requested SVC-001 incident evidence
+was never gathered, even though one service lookup and a terminal decision would
+have fit after the first two lookups.
+
+The tool implementations explain the overlap: both use `DeviceFacts` and the same
+`DEVICE_COLUMNS` projection; the list includes complete device records plus employee
+facts. The v2 tool descriptions could imply that device details adds deeper diagnostics.
+The prompt discouraged duplicate calls but did not explicitly prioritize marginal
+information gain or coverage across relevant unanswered aspects. The deterministic
+deduplication gate correctly allows different tools/arguments; it is not a semantic
+redundancy detector. The trace does not establish why the model chose the overlap.
+
+The minimal application change is prompt v3 in `app/investigation/planner.py`:
+
+- Describe the actual fields returned by the list and detail tools and their overlap.
+- Compare expected new relevant facts with already observed fields and entities.
+  Prefer uncovered requested aspects over a second view of the same information.
+- Reserve a terminal decision. With one useful lookup slot left, prioritize the
+  greatest relevant information gain; stop when remaining calls would be unrelated
+  or redundant. Being in scope does not make a lookup necessary.
+- Allow an eligible device re-read for a concrete discrepancy or reported record
+  correction. Old timestamps, nulls or a new query timestamp alone are insufficient;
+  neither tool performs live verification. Existing scope and deduplication still apply.
+- Replace the earlier account/device/service example with general gap-based guidance.
+  There is no VPN sequence, mandatory service check, or requirement to run every tool.
+
+No graph, policy, schema, operational tool, provider adapter, budget or scripted
+planner implementation changed. Redundant but permitted decisions remain executable;
+their quality is evaluated separately from authorization and workflow completion.
+No extra model call, planner rationale field or runtime ranking layer was added.
+
+### Focused offline evaluation
+
+`evaluation/planner_efficiency.jsonl` contains eight manually labelled decision
+contexts with 25 candidate comparisons and review notes. They use fictional seed
+observations in the test harness, with an explicit simulated record change for the
+re-read case. `evaluation/planner_efficiency.py` validates cases, rates exact typed
+decisions, and measures requested-lookup evidence coverage. No evaluation labels or
+expected decisions enter the model payload; the module is not used by runtime dispatch.
+
+| Context | Preferred next decision | Contrasting choices |
+| --- | --- | --- |
+| Account/device facts known; service requested | Scoped service incidents | Device details redundant; unrelated history unnecessary; early finish incomplete |
+| Inventory fields already returned | Finish | Details redundant; scoped service irrelevant |
+| Account/device facts known; entitlement requested | Software entitlement | Details redundant; service irrelevant |
+| Device facts known; recurrence history requested | Recent tickets | Details redundant; entitlement irrelevant |
+| Device facts known; account state requested | Account status | Employee facts do not include account state; details redundant |
+| Specific inventory correction reported | Eligible device details | Re-read can add changed recorded facts; service irrelevant |
+| Only the final decision remains | Finish with incomplete coverage | Another useful lookup would exhaust the decision budget |
+| First of two requested services checked | Incidents for second service | Repeating the first service is redundant and blocked; account irrelevant |
+
+Ratings are `preferred`, `redundant`, `unnecessary`, `premature_finish` or
+`budget_risk`; unlisted decisions are `unreviewed`, never automatically counted
+as success or failure. Tool arguments matter: one service lookup cannot cover
+another service. Coverage counts expected lookups with validated observations,
+including recorded `not_found` evidence; failed or blocked attempts do not count.
+This is a mechanical proxy for requested evidence coverage, not proof that an
+issue is resolved, a record is current, or a claim is correct. Quality labels and
+which evidence is relevant remain manually reviewed case annotations.
+
+The tests follow the distinction between tool selection and argument precision in
+[OpenAI's evaluation guidance](https://developers.openai.com/api/docs/guides/evaluation-best-practices).
+They run the actual graph and OpenAI SDK over mocked HTTP. The smoke comparison
+preserves both the old redundant path and the preferred alternative:
+
+| Choice after account + devices | Workflow | Requested evidence coverage |
+| --- | --- | --- |
+| Device details (supplied real trace and mocked replay) | completed/finish | 2/3 |
+| Service incidents (mocked comparison only) | completed/finish | 3/3 |
+| Unrelated history or early finish (mocked only) | completed/finish | 2/3 |
+
+All preferred fixture choices behave as labelled, including early finish and the
+justified re-read. This validates the cases, scorer and integration; it is **not**
+a measured improvement in live-model choice quality or a pre/post prompt A/B test.
+The prompt is guidance, not a semantic gate. A later user-authorized live evaluation
+must check whether the model actually selects higher-value evidence reliably.
+
+Run the focused offline checks with:
+
+```powershell
+uv run --locked --offline --extra dev python -m pytest tests/investigation/test_planner_efficiency.py --tb=short
+```
+
+Full-suite verification: **437 passed in 36.29 seconds** (all 405 existing tests
+plus 32 new tests; **370 offline and 67 PostgreSQL integration**, no skips).
+Application snapshots confirmed **79 operational records and 36 KB chunks/vectors
+unchanged**; no temporary test reader roles remained. No paid API requests were
+made, and Phase 4B.2 remains unstarted. Changes are left uncommitted for review.
