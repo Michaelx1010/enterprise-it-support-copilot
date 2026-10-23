@@ -1,0 +1,11 @@
+{
+  "version": "investigation-e2e-v1",
+  "fixture_queried_at": "2026-10-23T08:00:00Z",
+  "inputs": {
+    "kb_sha256": "15c5cad5f09acaef99789aeb79393dcef516051383c73d9972fa424b9bc16beb",
+    "ops_seed_sha256": "6d6fd5398bfbed35dbb881a4a9b1aa984823839a6a85d01d578fdd5df4061918"
+  },
+  "dataset_sha256": "ff6c5debedb882a563a260dbbfaaca97e509aafff5f3f0dceff6b8a7f23da447",
+  "purpose": "Inspected development fixtures and deliberate negative controls; no live quality measurement. Operational replay fields copied from committed seed records, never application DB writes.",
+  "hash_text_encoding": "UTF-8 with LF line endings"
+}

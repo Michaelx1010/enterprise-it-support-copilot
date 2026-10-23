@@ -9,6 +9,8 @@ There are no new dependencies, migrations, seeds or credentials.
 The initial implementation and its 510-test validation are recorded below.
 See [the live-review correction](#live-review-correction-prompt-v2) for the later
 semantic reliability adjustment and its separate offline evaluation.
+The subsequent [paired investigation evaluation](investigation_evaluation.md)
+freezes current behavior and proposes contract changes without implementing them.
 
 ## Architecture
 
