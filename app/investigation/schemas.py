@@ -161,7 +161,10 @@ SynthesisReference = SynthesisKBReference | SynthesisObservationReference | Tick
 
 
 class CitedStatement(Model):
-    text: Text
+    text: Text = Field(description=
+        'A claim entailed by its sources, explicitly attributed as ticket-reported, recorded snapshot, '
+        'or documented policy. Qualify snapshot claims with source time and unverified current state. '
+        'Inferences belong only in uncertainties and must be labelled unverified, not diagnoses.')
     references: list[SynthesisReference] = Field(min_length=1, max_length=8)
 
     @model_validator(mode='after')
@@ -173,8 +176,12 @@ class CitedStatement(Model):
 
 
 class InvestigationStep(Model):
-    step_type: Literal['troubleshooting', 'escalation']
-    action: Text
+    step_type: Literal['troubleshooting', 'escalation'] = Field(description=
+        'Escalation for a documented human handoff justified now by an established trigger; '
+        'troubleshooting for a local action. Do not hide conditional future handoffs in troubleshooting.')
+    action: Text = Field(description=
+        'One currently applicable documented action, preserving prerequisites and approvals. '
+        'No future escalation whose trigger is unknown or unmet, invented diagnosis or promised outcome.')
     references: list[SynthesisReference] = Field(min_length=1, max_length=8)
 
     @model_validator(mode='after')
@@ -187,13 +194,25 @@ class InvestigationStep(Model):
 
 class InvestigationSynthesis(Model):
     status: Literal['supported', 'insufficient_evidence']
-    summary: CitedStatement
-    findings: list[CitedStatement] = Field(max_length=8)
+    summary: CitedStatement = Field(description=
+        'Brief attributed symptoms and established facts, not inferred authentication/tunnel stages, '
+        'version support or live incident status. A general disclaimer cannot repair an unsupported claim.')
+    findings: list[CitedStatement] = Field(max_length=8, description=
+        'Attributed reports, timestamp-qualified recorded facts or explicit KB policy. '
+        'Enabled accounts and MFA enrollment do not exclude credential/authentication failures; '
+        'installed versions do not establish support policy. No speculative diagnoses.')
     steps: list[InvestigationStep] = Field(max_length=6)
     missing_information: list[Text] = Field(max_length=5)
-    uncertainties: list[CitedStatement] = Field(max_length=8)
-    escalation_required: StrictBool
-    escalation_reason: CitedStatement | None
+    uncertainties: list[CitedStatement] = Field(max_length=8, description=
+        'Unknowns, conflicts and explicitly unverified inferences with their basis and limitations. '
+        'Future handoff conditions may be described as unestablished policy conditions, not action instructions.')
+    escalation_required: StrictBool = Field(description=
+        'True exactly when a current documented handoff is recommended as an escalation step. '
+        'A future or unknown trigger does not justify true. False on abstention means undetermined, not safe.')
+    escalation_reason: CitedStatement | None = Field(description=
+        'For a current handoff, cite its KB rule and the ticket/observation establishing the trigger. '
+        'Do not assert a hypothetical future failure or diagnose a trigger from unrelated snapshot flags. '
+        'Null when no current escalation is recommended.')
 
     @model_validator(mode='after')
     def reuse_recommendation_contract(self) -> Self:

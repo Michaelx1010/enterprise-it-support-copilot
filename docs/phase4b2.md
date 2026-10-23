@@ -6,6 +6,10 @@ ticket, retrieved KB procedures and validated operational observations. It does
 not change planner selection, scope policy, tool execution or database access.
 There are no new dependencies, migrations, seeds or credentials.
 
+The initial implementation and its 510-test validation are recorded below.
+See [the live-review correction](#live-review-correction-prompt-v2) for the later
+semantic reliability adjustment and its separate offline evaluation.
+
 ## Architecture
 
 ```text
@@ -233,3 +237,100 @@ prompt-level semantic grounding and injection resistance, synthetic snapshots,
 manual applicability/conflict review, and the existing local developer identity
 model rather than production authentication/authorization. No frontend, web API,
 write-capable tools, persistence or future-phase infrastructure is introduced.
+
+## Live-review correction: prompt v2
+
+The user reported a successful first real run (three relevant lookups, four planner
+decisions, one accepted synthesis), followed by five semantic errors. This review
+uses that description and the application code/KB, not an independently inspected
+raw live-response artifact. The examples below reconstruct those errors with
+fictional fixtures; they are not verbatim captured model outputs.
+
+| Reported error | Why a valid citation is insufficient | Required distinction |
+| --- | --- | --- |
+| Enabled account and MFA enrollment exclude or reduce the likelihood of credential problems | Configuration flags are not tests of the attempted login | Record the flags; authentication outcome and credential validity remain unestablished |
+| Installed `5.2-demo` is supported | Inventory is not version-support policy; the VPN KB contains no version matrix | State the recorded version; support/compatibility requires explicit applicable KB policy |
+| Tunnel establishment failed after successful authentication | Temporal symptom wording does not establish protocol stages; no tunnel diagnostics were gathered | Attribute the reported sequence and leave the failure stage unknown |
+| Incident is ongoing now and explains this ticket | The active-incidents query selects recorded status, with `live_verified=false` | Include the source observation time and unverified current status in the claim itself; association is not causation |
+| Conditional persistent-gateway-error handoff marked required | KB text supplies a condition, not evidence that the condition occurred for this user | Establish the trigger before recommending the handoff |
+
+The prior prompt already prohibited invention and required source membership, but
+did not make these distinctions explicit enough. Schema validation accepted the
+responses because the IDs and step/flag/reason relationships were valid. It does
+not interpret claims or establish their applicability. Phase 2B.1 had already
+observed the same hypothetical-handoff problem, including a handoff hidden in a
+troubleshooting step despite a false escalation flag.
+
+The smallest change is prompt `investigation-synthesis-v2` plus descriptions on
+the existing Pydantic fields. Output fields, requiredness, limits, validators,
+provider/model, tools and graph are unchanged. No new claim classifier, keyword
+filter, diagnostic authority or approval mechanism was introduced. In particular,
+no deterministic rule attempts to interpret diagnosis or escalation prose from
+account flags or a KB paragraph. Those semantics cannot be checked reliably from
+the current free-text output contract.
+
+The revised instructions require:
+
+- Summary/findings distinguish ticket reports, timestamp-qualified snapshots and
+  explicit documented policy. They omit speculative diagnoses. Any useful inference
+  belongs only in uncertainties, labelled unverified with its basis and limitations;
+  adding "likely" is not a substitute for evidence.
+- Qualification accompanies each snapshot claim, including summaries. A generic
+  disclaimer elsewhere cannot repair an unsupported current-state assertion.
+  Query time is never substituted for observation time; missing source times are
+  stated as unavailable. No version string or service-specific tool sequence is
+  hardcoded in runtime behavior.
+- Steps contain currently applicable actions. `escalation_required=true` still
+  means an escalation-typed step and a cited nonnull reason. That reason should
+  cite both the KB condition and the report/observation establishing the trigger.
+  Code checks reference membership, not whether the trigger is semantically met.
+- Unknown/unmet future triggers yield no escalation step and a false/null flag/reason
+  unless another current handoff is independently justified. If useful, uncertainties
+  may describe a documented future condition as unestablished; this is policy context,
+  not an instruction to escalate. Missing trigger facts become clarification questions.
+  A hypothetical handoff must not be disguised as troubleshooting or summary text.
+- An established handoff remains valid even when submission details are missing.
+  If no current action is supported, abstain with no steps and escalation undetermined.
+
+This follows the earlier Phase 2B.1 distinction between a first failure and an
+actually failed retry. That standalone pipeline, its prompts, schemas, evaluation
+sets and frozen hashes are unchanged. Prompt versioning and explicit behavioral
+instructions follow the [official OpenAI prompting guidance](https://developers.openai.com/api/docs/guides/prompt-engineering);
+they do not establish a semantic guarantee.
+
+### Focused offline evaluation
+
+```powershell
+uv run --locked python -m evaluation.investigation_synthesis --cases evaluation/investigation_synthesis_semantics.jsonl
+```
+
+The original 11-case replay set and default command are preserved. The new file
+adds five pairs using identical evidence: an unsupported claim and a preferred
+authored correction for each live-review error. Four additional cases cover
+explicitly reported authentication success, explicit version-support policy,
+an established escalation trigger with missing submission details, and abstention
+when only a conditional handoff is documented and its trigger is unknown.
+
+These are inspected development fixtures with manually authored review labels,
+not a held-out set or results from rerunning the model. All 14 candidates pass
+structural/source checks, including the five labelled incorrect negative controls.
+Replay counts: **110/110 valid references**, **56/56 cited items**, **13/14 escalation
+label matches**, **1/1 unsupported-case abstentions**, **0/13 incorrect abstentions
+on answerable cases**, and **0 rejected/failed**. Perfect citation metrics coexist
+with the five semantic failures by design. The evaluation does not use an LLM
+judge or mistake an authored corrected response for measured prompt improvement.
+
+Nineteen new offline tests run the candidates through actual SDK parsing over
+mocked HTTP, check paired-evidence equality and existing escalation invariants,
+and replay account/device/incident lookups followed by synthesis. The graph test
+checks that typed evidence survives unchanged, with four planner decisions, three
+lookups and one synthesis attempt, using the actual VPN Markdown chunks.
+
+Full validation: **529 passed** (460 offline and 69 PostgreSQL integration tests),
+preserving all previous 510 tests. Before/after snapshots matched for all **79
+operational records** and **36 KB chunks including vectors/metadata**; temporary
+test reader roles remaining: **0**. No application data was seeded or modified.
+No paid requests, commits or pushes are part of this correction. A future approved
+live comparison and human claim-by-claim review are needed to assess whether the
+new instructions reduce these errors. Unsupported statements with valid IDs can
+still pass; timestamps remain synthetic snapshots, not live verification.

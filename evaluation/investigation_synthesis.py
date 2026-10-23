@@ -86,7 +86,11 @@ def summarize(cases: list[SynthesisCase], results: list[dict]) -> dict:
 
 
 if __name__ == '__main__':
-    cases = load_cases()
+    import argparse
+
+    parser = argparse.ArgumentParser(description='Offline synthesis response replay; never calls a model.')
+    parser.add_argument('--cases', type=Path, default=Path('evaluation/investigation_synthesis.jsonl'))
+    cases = load_cases(parser.parse_args().cases)
     results = [evaluate(case, ReplayProvider(case.candidate)) for case in cases]
     print(json.dumps({'mode': 'offline_response_replay', 'metrics': summarize(cases, results),
                       'outcomes': [{'id': r['id'], 'outcome': r['outcome']} for r in results]}, indent=2))

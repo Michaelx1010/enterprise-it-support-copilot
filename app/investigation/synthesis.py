@@ -10,7 +10,7 @@ from app.investigation.schemas import (
 )
 from app.providers.synthesis import SynthesisError, SynthesisProvider
 
-PROMPT_VERSION = 'investigation-synthesis-v1'
+PROMPT_VERSION = 'investigation-synthesis-v2'
 MAX_PAYLOAD_CHARACTERS = 64000
 
 INSTRUCTIONS = """Draft an advisory IT investigation report using ONLY the supplied evidence.
@@ -31,6 +31,31 @@ EVIDENCE TYPES
 Keep these distinctions in summary, findings, actions and escalation_reason. Classification
 is not independent evidence. Do not infer a cause from category, search rank or a matching ID.
 
+CLAIM ENTAILMENT AND ATTRIBUTION
+Before including a claim, check that the cited source establishes that exact claim,
+for this subject and time. A related topic or real citation ID is not enough.
+- Attribute symptoms to the ticket: 'The user reports ...'. Do not turn the order of
+  reported events into verified protocol stages. 'Fails after sign in' does not prove
+  authentication succeeded or that tunnel establishment failed. Even an explicit user
+  report of authentication success remains a report, not collected diagnostic evidence.
+- Describe operational facts as 'The snapshot records ...', with the relevant source
+  timestamp and unverified-current-state qualification in the SAME claim, including
+  summary claims. A generic disclaimer elsewhere does not qualify a present-tense claim.
+  A tool named active incidents returns recorded status; it does not verify an incident
+  is ongoing now, affects this user, or caused their symptoms. If the relevant timestamp
+  is absent, say it is unavailable rather than substituting queried_at as observation time.
+- Account enabled/unlocked and MFA enrolled are configuration facts, not credential
+  validity, authentication success, working MFA or absence of authentication problems.
+  Do not rule out or rank diagnoses as unlikely from these flags. Missing diagnostics
+  and not_found results are unknowns, not negative diagnostic tests.
+- An installed client version is inventory only. Call it supported, approved, compatible
+  or up to date ONLY if supplied KB policy explicitly establishes that property for
+  that version and applicable environment. Otherwise support status is not established.
+- Keep summary/findings to attributed reports, recorded facts and explicit KB policy.
+  Omit speculative diagnoses. If a useful inference must be discussed, put it only in
+  uncertainties, label it unverified, cite its basis and state what is not established.
+  Merely adding 'likely' or 'possibly' does not make an unsupported causal claim grounded.
+
 APPLICABILITY BEFORE ACTION (same policy as standalone Phase 2B.1)
 Choose only a procedure branch whose trigger is supported by the ticket and applicable
 observations. Explicit negative facts constrain branch choice. Account/device/service
@@ -46,10 +71,24 @@ an independently applicable documented diagnostic or handoff may still be recomm
 ESCALATION
 A documented handoff/report/permission/approval request to another party is an escalation,
 even when initiated by the employee. Separate it from local troubleshooting. Recommend
-a conditional handoff only when its trigger is evidenced, not a hypothetical failed retry.
+a handoff in steps only when its documented trigger is ALREADY established for this
+ticket by an explicit report or applicable evidence. Cite both the KB condition and
+the ticket/observation establishing it in escalation_reason; do not treat a KB condition
+as evidence that it occurred. An old incident or general connection failure does not
+establish persistent gateway errors for this user. Do not invent a failed retry.
+If the trigger is unknown or unmet, omit the escalation step, leave escalation_required
+false and escalation_reason null unless a DIFFERENT documented handoff is justified now.
+Give any currently applicable documented diagnostic and ask for the missing trigger.
+If future guidance is useful, describe only the KB condition and its unestablished
+status in a cited uncertainty, not an instruction to contact anyone. Never bury a
+conditional handoff in troubleshooting, summary or missing_information to keep the
+flag false. No applicable current action means insufficient_evidence, not a future step.
 Missing details needed to submit an otherwise applicable request can go in missing_information;
 they do not require inventing a repair or promising approval. escalation_required describes
 recommended human action, never an executed action. Its cited reason must include KB support.
+For example, a first failure with no retry supports a documented retry, not a
+'contact support if it fails' step. A reported failed retry can justify that same
+documented handoff now. This distinction applies to all services, not a fixed tool route.
 
 OUTPUT
 Every summary, finding, uncertainty, step and escalation reason must cite typed references
