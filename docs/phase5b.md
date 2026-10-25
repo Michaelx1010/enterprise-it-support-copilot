@@ -120,6 +120,45 @@ providers use zero. Input tokens, provider availability and model pricing vary.
 
 ## Artifacts, scoring and review
 
+### Proxy routing and unauthenticated connectivity
+
+The failed `future-001` and `future-002` pilots recorded transport failures with
+no HTTP status or token usage. Review found that the explicit custom transport
+disabled HTTPX's automatic environment-proxy mounting. The evaluator now resolves
+`HTTPS_PROXY`, falling back to `ALL_PROXY`, and supplies the selected proxy to the
+inner HTTP transport **inside** the telemetry wrapper. Lowercase equivalents and
+hostname/domain/`*` exclusions in `NO_PROXY` are supported through Python's standard
+environment proxy helpers. Without an applicable proxy it connects directly;
+`HTTP_PROXY` alone does not route this fixed HTTPS destination. Environment-only
+settings are used, not Windows registry proxy configuration. HTTP(S) proxies such
+as Clash's HTTP listener require no extra dependencies; SOCKS requires HTTPX's
+optional SOCKS support, which this project does not add.
+
+HTTPX transport and SDK retries remain zero. The API endpoint and certificate
+verification remain unchanged. Proxy URLs, credentials and raw exception messages
+are never included in diagnostics. A failed proxy connection does not fall back
+to a direct connection. Dry-run and database preflight remain free of model API
+requests and do not perform this separate connectivity check.
+
+To check connectivity without an API key or paid request, use the same transport:
+
+```powershell
+$env:HTTPS_PROXY = 'http://127.0.0.1:7897'
+uv run --locked --offline python -m evaluation.live_telemetry --check-connectivity
+```
+
+Use the proxy configured in your own shell; the assignment above is the local
+Clash example. No `.env` file is needed. This sends exactly one unauthenticated
+`GET https://api.openai.com/v1/models`, with a 10-second timeout and no redirects,
+SDK client, authorization header, ticket or model input. It reports only safe
+status/timing fields. HTTP 401 is the expected result and exit code 0; other
+statuses or connection failures return 1. A 401 establishes reachability through
+this transport, not API-key validity, model access, quota or paid-pilot quality.
+See HTTPX's [transport documentation](https://www.python-httpx.org/advanced/transports/)
+and [environment configuration](https://www.python-httpx.org/environment_variables/).
+
+### Output and scoring
+
 Each new output directory contains:
 
 - `paired.json`: full ticket/scope, shared retrieved KB text/metadata/distances and
@@ -218,6 +257,13 @@ snapshot check confirmed **79 operational records and 36 KB chunks/vectors uncha
 with zero temporary test reader roles remaining. The new `--dry-run --check-db`
 also passed against the application database with zero API calls. Production
 `app/` files and the frozen Phase 5A dataset, manifest and evaluator are unchanged.
+
+Proxy correction verification: **617 tests passed**, including the existing 74
+PostgreSQL integration tests and 16 new offline proxy tests. Application records
+and KB vectors remained unchanged, with no temporary test roles left behind.
+The actual metered connectivity check through the configured Clash HTTP proxy
+returned the expected **401 in approximately 0.69 seconds** for one unauthenticated
+request. No paid model calls were made and neither failed pilot was rerun.
 
 There are no measured live-model scores in this increment. Four
 development scenarios, one fixed execution order and one sample per case do not

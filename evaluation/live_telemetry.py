@@ -2,8 +2,24 @@
 
 import json
 import time
+from urllib.request import getproxies_environment, proxy_bypass_environment
 
 import httpx
+
+API_BASE_URL = 'https://api.openai.com/v1'
+
+
+def openai_transport() -> 'MeteredTransport':
+    """Resolve environment routing for our single fixed HTTPS destination.
+
+    An explicit HTTPX transport disables the client's automatic proxy mounts.
+    Put the proxy on the inner transport so no request bypasses metering.
+    Never retain proxy configuration in telemetry or diagnostics.
+    """
+    proxies = getproxies_environment()
+    proxy = None if proxy_bypass_environment('api.openai.com', proxies) else (
+        proxies.get('https') or proxies.get('all'))
+    return MeteredTransport(httpx.HTTPTransport(proxy=proxy, retries=0))
 
 
 class MeteredTransport(httpx.BaseTransport):
@@ -14,10 +30,11 @@ class MeteredTransport(httpx.BaseTransport):
         self.arm = 'agent'
 
     def handle_request(self, request: httpx.Request) -> httpx.Response:
-        payload = json.loads(request.content)
+        payload = json.loads(request.content) if request.content else {}
         schema = payload.get('text', {}).get('format', {}).get('name')
         stage = {'TicketClassification': 'classification', 'PlannerResponse': 'planner',
-                 'InvestigationSynthesis': 'synthesis', 'SupportRecommendation': 'recommendation'}.get(schema, 'embedding')
+                 'InvestigationSynthesis': 'synthesis', 'SupportRecommendation': 'recommendation'}.get(
+                     schema, 'connectivity' if request.method == 'GET' else 'embedding')
         row = {'case_id': self.case_id, 'arm': self.arm, 'stage': stage,
                'model_requested': payload.get('model'), 'model_returned': None,
                'settings': {k: payload[k] for k in ('max_output_tokens', 'temperature', 'store', 'dimensions') if k in payload},
@@ -66,3 +83,28 @@ def usage_totals(calls: list[dict]) -> dict:
              if r['usage'] is not None and 'total_tokens' in r['usage']]
     return {'requests': len(calls), 'known_total_tokens': sum(known),
             'requests_without_total_tokens': len(calls) - len(known), 'cost_usd': None}
+
+
+def check_connectivity() -> int:
+    """One unauthenticated GET through the evaluator transport; never use the SDK."""
+    try:
+        meter = openai_transport()
+        with httpx.Client(transport=meter, timeout=10.0, follow_redirects=False) as client:
+            response = client.get(API_BASE_URL + '/models')
+        print(json.dumps({'authenticated': False, 'paid_api_calls': 0,
+                          'http_status': response.status_code, 'expected_unauthorized': response.status_code == 401,
+                          'requests': len(meter.calls), 'latency_seconds': meter.calls[0]['latency_seconds']}))
+        return 0 if response.status_code == 401 else 1
+    except Exception:
+        # Proxy errors may contain credentials. Never echo exception text or URLs.
+        print(json.dumps({'authenticated': False, 'paid_api_calls': 0, 'error': 'connectivity_check_failed'}))
+        return 1
+
+
+if __name__ == '__main__':
+    import argparse
+
+    parser = argparse.ArgumentParser(description='Unauthenticated check using the Phase 5B metered transport.')
+    parser.add_argument('--check-connectivity', action='store_true', required=True)
+    parser.parse_args()
+    raise SystemExit(check_connectivity())

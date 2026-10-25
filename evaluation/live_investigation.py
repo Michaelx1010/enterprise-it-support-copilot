@@ -35,7 +35,7 @@ from evaluation.investigation_e2e import (
     MANIFEST, Case, digest, load_cases, planner_metrics, review_items, scoring_row,
     summarize, text_digest,
 )
-from evaluation.live_telemetry import MeteredTransport, usage_totals
+from evaluation.live_telemetry import API_BASE_URL, MeteredTransport, openai_transport, usage_totals
 
 PILOT_IDS = ('vpn-confirmed', 'vpn-future-condition', 'irrelevant-incident', 'unsupported-procedure')
 MODEL_ENV = {'classification': 'OPENAI_MODEL', 'embedding': 'OPENAI_EMBEDDING_MODEL',
@@ -251,11 +251,11 @@ def run_paid(cases: list[Case], models: dict, *, store, db, directory: Path, che
               'cases': [], 'api_calls': [], 'errors': [], 'database_unchanged': None,
               **source_metadata()}
     write_artifacts(directory, report)  # Verify writable artifacts before any API request.
-    meter = MeteredTransport(httpx.HTTPTransport(retries=0))
+    meter = openai_transport()
     report['api_calls'] = meter.calls
     try:
         # Credentials are read by the SDK, never inspected or included in artifacts.
-        with OpenAI(base_url='https://api.openai.com/v1', timeout=30.0, max_retries=0,
+        with OpenAI(base_url=API_BASE_URL, timeout=30.0, max_retries=0,
                     http_client=httpx.Client(transport=meter, timeout=30.0)) as client:
             dependencies = Dependencies(
                 classifier=OpenAIProvider(client, model=models['classification']),
