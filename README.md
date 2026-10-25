@@ -221,6 +221,20 @@ controls, not a measurement of live model quality:
 uv run --locked python -m evaluation.investigation_synthesis
 ```
 
+## Controlled paired evaluation
+
+[Phase 5B](docs/phase5b.md) adds a separate opt-in live paired runner for four frozen
+Phase 5A scenarios. Both arms share the exact ticket and retrieved KB evidence;
+only the investigation arm performs operational lookups. Dry-run makes no API calls:
+
+```powershell
+uv run --locked --offline python -m evaluation.live_investigation --dry-run
+```
+
+The guide documents restricted database preflight, later paid opt-in commands,
+request bounds, paired outputs and manual claim review. Live scores remain
+separate from [Phase 5A fixture replay](docs/investigation_evaluation.md).
+
 ## Dataset and limitations
 
 Source: [Console-AI/IT-helpdesk-synthetic-tickets](https://huggingface.co/datasets/Console-AI/IT-helpdesk-synthetic-tickets)

@@ -257,3 +257,77 @@ def test_grounded_synthesis_uses_actual_readonly_evidence(investigation_db, read
     assert result.lookup_attempts == 1 and len(result.operational_evidence) == 1
     assert result.kb_evidence[0].result.distance == pytest.approx(0)
     assert snapshot(investigation_db) == before
+
+
+def test_live_evaluation_readonly_audit_detects_incomplete_corpus(investigation_db, reader_pair):
+    from evaluation.live_investigation import database_audit
+
+    before = snapshot(investigation_db)
+    first = database_audit(reader_pair[1], reader_pair[0])
+    assert first == database_audit(reader_pair[1], reader_pair[0])
+    assert all(row['matches_frozen_inputs'] for name, row in first.items() if name.startswith('ops.'))
+    # This integration fixture deliberately indexes three chunks, not the frozen 36.
+    assert first['public.kb_chunks']['rows'] == 3
+    assert not first['public.kb_chunks']['matches_frozen_inputs']
+    assert snapshot(investigation_db) == before
+
+
+@pytest.mark.parametrize('admin_arm', ['ops', 'kb'])
+def test_live_evaluation_audit_rejects_admin_fallback(investigation_db, reader_pair, admin_arm):
+    from app.operations.db import OperationalDataError
+    from evaluation.live_investigation import database_audit
+
+    db = OperationalDB(investigation_db) if admin_arm == 'ops' else reader_pair[0]
+    store = ReadOnlyKBStore(investigation_db) if admin_arm == 'kb' else reader_pair[1]
+    with pytest.raises((OperationalDataError, KBAccessError)):
+        database_audit(store, db)
+
+
+@pytest.mark.parametrize('invalid', [False, True])
+def test_live_pair_reuses_real_retrieval_and_readonly_lookups(investigation_db, reader_pair, inv_dependencies,
+        planner_response, synthesis_report, invalid):
+    import httpx
+    from openai import OpenAI
+    from app.providers.openai_planner import OpenAIPlanner
+    from app.providers.openai_synthesis import OpenAISynthesis
+    from app.providers.openai_recommendation import OpenAIRecommendation
+    from evaluation.live_investigation import run_pair, select_cases, project_report, database_audit
+    from evaluation.live_telemetry import MeteredTransport
+
+    case = select_cases(['vpn-confirmed'])[0]
+    choices = iter(decisions(('get_employee_account_status', {'employee_id': 'EMP-001'})))
+    actual_kb_ids = []
+    def handler(request):
+        raw = json.loads(request.content)
+        payload = json.loads(raw['input'][1]['content'])
+        schema = raw['text']['format']['name']
+        if schema == 'PlannerResponse':
+            body = planner_response(next(choices))
+        elif schema == 'InvestigationSynthesis':
+            evidence = payload['untrusted_evidence']
+            actual_kb_ids.extend(e['reference']['chunk_id'] for e in evidence['kb_procedures'])
+            assert evidence['operational_observations'][0]['observation']['result']['account']['observed_at']
+            assert not evidence['operational_observations'][0]['observation']['result']['live_verified']
+            synthesis_report['steps'][0]['references'][0]['chunk_id'] = 'invented' if invalid else actual_kb_ids[0]
+            body = planner_response(raw_text=json.dumps(synthesis_report))
+        else:
+            assert [e['chunk_id'] for e in payload['evidence']] == actual_kb_ids
+            assert set(payload) == {'ticket', 'evidence'}
+            report = project_report(synthesis_report)
+            report['steps'][0]['supporting_chunk_ids'] = [actual_kb_ids[0]]
+            body = planner_response(raw_text=json.dumps(report))
+        return httpx.Response(200, json=body)
+
+    before = database_audit(reader_pair[1], reader_pair[0])
+    meter = MeteredTransport(httpx.MockTransport(handler))
+    with OpenAI(api_key='test-placeholder', max_retries=0, http_client=httpx.Client(transport=meter)) as client:
+        deps = replace(inv_dependencies, db=reader_pair[0], store=reader_pair[1], fixture_lookup=None,
+            embedder=ScriptedEmbedder(build_query(case.request.ticket), SPEC, VECTOR),
+            planner=OpenAIPlanner(client), synthesis=OpenAISynthesis(client), phase='4B.1')
+        row = run_pair(case, dependencies=deps, standalone=OpenAIRecommendation(client), meter=meter)
+    assert row['agent']['outcome'] == ('rejected' if invalid else 'accepted')
+    assert row['standalone']['outcome'] == 'accepted'
+    assert len(row['agent_result']['operational_evidence']) == 1
+    assert row['agent_result']['lookup_attempts'] == 1
+    assert len(row['shared_kb']) == 3 and row['shared_retrieval_succeeded']
+    assert before == database_audit(reader_pair[1], reader_pair[0])
