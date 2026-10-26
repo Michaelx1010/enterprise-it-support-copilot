@@ -157,6 +157,86 @@ this transport, not API-key validity, model access, quota or paid-pilot quality.
 See HTTPX's [transport documentation](https://www.python-httpx.org/advanced/transports/)
 and [environment configuration](https://www.python-httpx.org/environment_variables/).
 
+### Synthesis rejection diagnostics
+
+`future-003` (`vpn-future-condition`) reached the API successfully: eight requests
+returned HTTP 200, the planner gathered 3/3 expected observations with no redundant
+or unnecessary lookups, and it finished after four decisions. One synthesis attempt
+was rejected as `synthesis_invalid_output`; the graph retained the evidence and
+returned `partial`. Standalone RAG was accepted with `escalation_required=false`.
+The saved synthesis usage is 4,338 input tokens and 1,181 output tokens. The saved
+database verification passed. These are observations from that pilot, not a quality
+estimate for the four-scenario evaluation set.
+
+The existing production code has these `invalid_output` paths:
+
+| Boundary | Conditions |
+| --- | --- |
+| `OpenAISynthesis`: `responses.parse()` | Pydantic `ValidationError`, `ValueError` or `TypeError` raised inside the SDK call, including JSON decoding, schema/type constraints and application model validators |
+| `OpenAISynthesis`: response checks | Unexpected non-message/non-reasoning output item, or anything other than exactly one message containing one `output_text` item after a parsed result is present |
+| `OpenAISynthesis`: revalidation | Parsed result is not an `InvestigationSynthesis`, or validating its dumped fields raises `ValidationError`, `ValueError` or `TypeError` |
+| `generate_synthesis`: application validation | Provider returns the wrong type, or Pydantic revalidation rejects its dumped fields |
+
+The installed SDK's `parse_text` calls `model_parse_json`, which calls
+`InvestigationSynthesis.model_validate_json`. Therefore **an SDK parsing exception
+can be an application contract violation**, not an SDK defect or malformed JSON.
+For example, the application's model validators enforce unique references, a KB
+reference on every action, supported/abstention step consistency, agreement between
+escalation flag/step/reason, and KB support for an escalation reason. These Python
+cross-field checks are not all represented by the JSON Schema sent to the API.
+Field type, text length and list bounds can also cause rejection. See the official
+[Structured Outputs guide](https://developers.openai.com/api/docs/guides/structured-outputs)
+for the SDK/Pydantic parsing boundary; the precise checks above come from this
+repository and its locked SDK.
+
+Normally incomplete responses, refusals and absent parsed output have separate
+codes (`incomplete`, `refusal`, `missing_output`). However, parsing runs **before**
+the provider checks completion status; malformed output in an incomplete response
+can raise `invalid_output` first. Unknown citation IDs map to `invalid_citation`
+after schema validation, while missing required limitations map to
+`missing_limitations`. Structurally malformed references can fail earlier as
+`invalid_output`. HTTP 200 does not distinguish these cases.
+
+The original `future-003` artifact contains no rejected response body, parser
+exception details, or response completion status. It cannot establish which path,
+field or validator failed, whether escalation fields were inconsistent, or whether
+an incomplete response failed parsing. Token counts do not recover that content.
+No historical report, worksheet, fixture, label or model response is altered or
+reconstructed by this correction.
+
+New paired runs add `synthesis_diagnostics` alongside the unchanged `agent_result`.
+`evaluation/synthesis_diagnostics.py` observes the existing SDK parse method and
+production provider without replacing their validation logic, changing prompts or
+schemas, re-parsing a rejected response, or retrying anything:
+
+- `sdk_parse`: the SDK call returned or failed. A Pydantic failure can originate in
+  the application's schema or custom validators executed within that call.
+- `provider_response_validation` / `provider_revalidation`: rejection after SDK
+  parsing returned, distinguished using the existing immediate exception context.
+- `application_validation`: the graph's downstream validation outcome. Its failure
+  code is retained, but the graph has already discarded exception details, so
+  `details_available=false` is explicit. Deadline and other later failures are
+  recorded separately as `pipeline_outcome`.
+
+Pydantic details retain only standardized, allowlisted error types and schema field
+or model-branch names plus bounded numeric list indices. Unknown location strings
+(including untrusted extra keys) are replaced with `<redacted>`. Custom error types
+are mapped to `other_validation_error`. Diagnostics omit messages, inputs, error
+context, URLs, titles, tracebacks and exception objects. At most 20 errors and 12
+location components per error are stored, with explicit truncation flags. API
+errors and non-Pydantic exceptions expose only fixed categories. Credentials,
+prompts, evidence and raw generated text are never retained in this diagnostic field.
+
+An empty location (`[]`) denotes a model/root error. `value_error` at that location
+does not identify the particular cross-field rule; the sanitized diagnostics do
+not claim otherwise. Existing accepted outputs/evidence remain in their normal
+review fields. Diagnostics are evaluator-local, do not enter model inputs, and do
+not change production error codes, partial-result behavior or failed-case metrics.
+Source fingerprints now include the diagnostic module. Offline tests exercise
+schema failures, inconsistent escalation fields at both parsing and revalidation,
+response shape checks, downstream application failures, redaction, bounds and
+unchanged rejection behavior. No paid request is required to run these tests.
+
 ### Output and scoring
 
 Each new output directory contains:
@@ -265,7 +345,15 @@ The actual metered connectivity check through the configured Clash HTTP proxy
 returned the expected **401 in approximately 0.69 seconds** for one unauthenticated
 request. No paid model calls were made and neither failed pilot was rerun.
 
-There are no measured live-model scores in this increment. Four
+Synthesis-diagnostic verification: **640 tests passed**, including all 74 PostgreSQL
+integration tests and 23 new diagnostic regression cases. All 79 application
+operational records and 36 KB chunks/vectors remained unchanged; no temporary test
+reader roles remained. The new tests use mocked SDK/HTTP responses and compare
+observed and unobserved production rejection behavior. The `future-003` artifacts
+were inspected read-only; no paid calls or new live-model scores were collected
+by this diagnostic increment.
+
+Four
 development scenarios, one fixed execution order and one sample per case do not
 support statistical comparisons. Provider outputs can vary even at temperature
 zero. The evaluation datasets have already informed development and are not a

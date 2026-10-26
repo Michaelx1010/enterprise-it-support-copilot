@@ -36,6 +36,7 @@ from evaluation.investigation_e2e import (
     summarize, text_digest,
 )
 from evaluation.live_telemetry import API_BASE_URL, MeteredTransport, openai_transport, usage_totals
+from evaluation.synthesis_diagnostics import ObservedSynthesis
 
 PILOT_IDS = ('vpn-confirmed', 'vpn-future-condition', 'irrelevant-incident', 'unsupported-procedure')
 MODEL_ENV = {'classification': 'OPENAI_MODEL', 'embedding': 'OPENAI_EMBEDDING_MODEL',
@@ -164,7 +165,8 @@ def run_pair(case: Case, *, dependencies: Dependencies, standalone, meter: Meter
     first_call = len(meter.calls)
     started = time.monotonic()
     planner = RecordedPlanner(dependencies.planner)
-    result = run_investigation(case.request, dependencies=replace(dependencies, planner=planner))
+    synthesis = ObservedSynthesis(dependencies.synthesis) if dependencies.synthesis is not None else None
+    result = run_investigation(case.request, dependencies=replace(dependencies, planner=planner, synthesis=synthesis))
     agent_seconds = time.monotonic() - started
     # Exactly the graph's validated retrieval result, including rank, text and distance.
     evidence = [e.result.model_copy(deep=True) for e in result.kb_evidence]
@@ -198,6 +200,7 @@ def run_pair(case: Case, *, dependencies: Dependencies, standalone, meter: Meter
             'retrieved_reference_overlap': sorted(set(case.kb_chunk_ids) & {e.chunk.chunk_id for e in evidence}),
             'frozen_review_notes': case.review_notes,
             'agent_result': result.model_dump(mode='json'), 'planner_decisions': planner.decisions,
+            'synthesis_diagnostics': synthesis.finish(result) if synthesis else [],
             'agent': scoring_row(case, project_report(raw) if retrieval_ok else None, evidence, agent_error),
             'standalone': scoring_row(case, rag, evidence, rag_error),
             'planner': planner_metrics(case, result),
@@ -222,6 +225,7 @@ def source_metadata() -> dict:
                                                for p in sorted(Path('app').rglob('*.py')))),
             'evaluator_sha256': {p: text_digest(Path(p)) for p in (
                 'evaluation/live_investigation.py', 'evaluation/live_telemetry.py',
+                'evaluation/synthesis_diagnostics.py',
                 'evaluation/investigation_e2e.py', 'evaluation/recommendation.py')},
             'lockfile_sha256': text_digest(Path('uv.lock'))}
 
