@@ -1,0 +1,75 @@
+{
+  "format_version": 1,
+  "description": "Immutable Phase 5B pilot inputs for retrospective consolidation; reports are local and excluded from Git.",
+  "baseline_application_commit": "a2747747d5df9c03700a79d14d523c8fd65ac400",
+  "application_sha256": "2fd12cbb684aa59777b5316106adf97dd297dbe88051fa3ce245a2c950b24012",
+  "lockfile_sha256": "6ca15d767cc9a9697c01ed60262a841e661e30e47f12a9ecf0d61fb0d113bb94",
+  "prompt_versions": {
+    "planner": "investigation-planner-v3",
+    "synthesis": "investigation-synthesis-v2",
+    "standalone": "grounded-recommendation-v4"
+  },
+  "models": {
+    "classification": "gpt-4.1-mini-2025-04-14",
+    "embedding": "text-embedding-3-small",
+    "planner": "gpt-4.1-mini-2025-04-14",
+    "synthesis": "gpt-4.1-mini-2025-04-14",
+    "standalone": "gpt-4.1-mini-2025-04-14"
+  },
+  "frozen_manifest_sha256": "6c1ccf66181f9f51e9b9d5e85fdcb7ad7325a4e9ea62901ece0c8d7f16d8beac",
+  "runs": [
+    {
+      "id": "future-001",
+      "cohort": "transport_failure_history",
+      "files": {
+        "paired.json": "070f6acc9309b79c7a71926d72a1870f5e85e808a88748514b6089bd977834aa",
+        "manual-review.json": "534b7c917320013ea63223812173589534da845a6934c03bd9a98f2f27bc7117"
+      }
+    },
+    {
+      "id": "future-002",
+      "cohort": "transport_failure_history",
+      "files": {
+        "paired.json": "2f778cc42fd78de0229d4ca6d410ca8c240f143a86747b0c5770b613c0ea1697",
+        "manual-review.json": "534b7c917320013ea63223812173589534da845a6934c03bd9a98f2f27bc7117"
+      }
+    },
+    {
+      "id": "future-003",
+      "cohort": "post_connectivity",
+      "files": {
+        "paired.json": "6c2ea9d7c38e18ab0a72650b873f8893eb446c977089cc7c5bb1ae49be72b348",
+        "manual-review.json": "4e769226b2f826bb15faa84d9c4dc7472cee59620e3baea70ecf3b04fbab4151"
+      }
+    },
+    {
+      "id": "future-004",
+      "cohort": "post_connectivity",
+      "files": {
+        "paired.json": "14d676b272e77e54d997dfd7956073cc43944268ecbc2bd54d96e7769f8713d6",
+        "manual-review.json": "4e769226b2f826bb15faa84d9c4dc7472cee59620e3baea70ecf3b04fbab4151"
+      }
+    },
+    {
+      "id": "confirmed-001",
+      "cohort": "post_connectivity",
+      "files": {
+        "paired.json": "604593aecf96983570c6ff334354f3348e1b5f64e2b42977d864c88189e63954",
+        "manual-review.json": "3f0e5e1bce2c8f9dfa58cbdbbea2dfa1f2761971fc3fae81367f8686d9c08815"
+      }
+    },
+    {
+      "id": "remaining-001",
+      "cohort": "post_connectivity",
+      "files": {
+        "paired.json": "49f662a88166f00dcce92e1c2e699636bf2e04084fb0428774b3d6a3affb7f3d",
+        "manual-review.json": "df41efadb90f0bce37f085b9d8e9e1fd2d46f7fa7afcefe8645a6b625bbc66f4"
+      }
+    }
+  ],
+  "preserved_derived_artifacts": {
+    "reports/phase5c/baseline-001/baseline.json": "55133a5235ab4bfa478e7670554f6ff8af39dff826a4fde89b686289d5893c20",
+    "reports/phase5c/baseline-001/offline-contract-probes.json": "ba02bbdb5a3234b170d7290c0de0f629d1f3bb104c230a9f6be675d24e6a1489",
+    "reports/phase5c/baseline-001/consolidate.py": "aef74a4f353a5995f38fe4596a240a059d65642584503f485213184a37cbc5b2"
+  }
+}

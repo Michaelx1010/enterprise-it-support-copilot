@@ -26,10 +26,10 @@ from evaluation.synthesis_diagnostics import ObservedSynthesis, error_details
     ('text_limit', 'string_too_long', ['summary', 'text']),
     ('extra_key', 'extra_forbidden', ['summary', '<redacted>']),
     ('duplicate_refs', 'value_error', ['summary']),
-    ('escalation_flag', 'value_error', []),
-    ('escalation_reason', 'value_error', []),
-    ('abstention_steps', 'value_error', []),
-    ('reason_without_kb', 'value_error', []),
+    ('escalation_flag', 'escalation_steps_mismatch', []),
+    ('escalation_reason', 'escalation_reason_mismatch', []),
+    ('abstention_steps', 'status_steps_mismatch', []),
+    ('reason_without_kb', 'escalation_reason_missing_kb', []),
 ])
 def test_sdk_parse_runs_application_contracts_safely(planner_client, planner_response, synthesis_report,
         failure, expected_type, expected_loc):
@@ -106,7 +106,7 @@ def test_sdk_return_is_distinct_from_later_rejection(synthesis_report, failure, 
     assert event['stage'] == stage and event['exception_type'] == exception
     assert 'DO_NOT_LOG' not in json.dumps(observer.events)
     if failure == 'contract':
-        assert event['errors'][0]['type'] == 'value_error' and event['errors'][0]['loc'] == []
+        assert event['errors'][0]['type'] == 'escalation_steps_mismatch' and event['errors'][0]['loc'] == []
         assert observer.events[0] == {'stage': 'sdk_parse', 'outcome': 'returned'}
 
 

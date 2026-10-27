@@ -3,6 +3,7 @@
 from typing import Annotated, Literal, Self
 
 from pydantic import AwareDatetime, Field, StrictBool, TypeAdapter, model_validator
+from pydantic_core import PydanticCustomError
 
 from app.kb.schemas import SearchResult
 from app.operations.records import EmployeeID, ServiceID, SoftwareID, Model
@@ -227,7 +228,7 @@ class InvestigationSynthesis(Model):
             'escalation_reason': self.escalation_reason.text if self.escalation_reason else None,
         })
         if self.escalation_reason and not any(isinstance(r, KBReference) for r in self.escalation_reason.references):
-            raise ValueError('Escalation requires documented support in its reason.')
+            raise PydanticCustomError('escalation_reason_missing_kb', 'Escalation requires documented support in its reason.')
         return self
 
     def cited_items(self) -> list[CitedStatement | InvestigationStep]:

@@ -3,6 +3,7 @@
 from typing import Annotated, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
+from pydantic_core import PydanticCustomError
 
 from app.kb.schemas import SearchResult
 
@@ -51,12 +52,12 @@ class SupportRecommendation(BaseModel):
     @model_validator(mode="after")
     def consistent_status_and_escalation(self) -> Self:
         if (self.status == "supported") != bool(self.steps):
-            raise ValueError("Supported recommendations need steps; abstentions must have none.")
+            raise PydanticCustomError("status_steps_mismatch", "Supported recommendations need steps; abstentions must have none.")
         has_escalation = any(step.step_type == "escalation" for step in self.steps)
         if self.escalation_required != has_escalation:
-            raise ValueError("Escalation flag must match the presence of a cited escalation step.")
+            raise PydanticCustomError("escalation_steps_mismatch", "Escalation flag must match the presence of a cited escalation step.")
         if self.escalation_required != (self.escalation_reason is not None):
-            raise ValueError("Only a documented escalation needs a nonblank reason.")
+            raise PydanticCustomError("escalation_reason_mismatch", "Only a documented escalation needs a nonblank reason.")
         return self
 
 

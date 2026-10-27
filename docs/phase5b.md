@@ -220,16 +220,20 @@ schemas, re-parsing a rejected response, or retrying anything:
 
 Pydantic details retain only standardized, allowlisted error types and schema field
 or model-branch names plus bounded numeric list indices. Unknown location strings
-(including untrusted extra keys) are replaced with `<redacted>`. Custom error types
-are mapped to `other_validation_error`. Diagnostics omit messages, inputs, error
+(including untrusted extra keys) are replaced with `<redacted>`. Since Phase 5C.1,
+exactly four application-owned invariant types are also allowed:
+`status_steps_mismatch`, `escalation_steps_mismatch`, `escalation_reason_mismatch`
+and `escalation_reason_missing_kb`. All other custom error types are mapped to
+`other_validation_error`. Diagnostics omit messages, inputs, error
 context, URLs, titles, tracebacks and exception objects. At most 20 errors and 12
 location components per error are stored, with explicit truncation flags. API
 errors and non-Pydantic exceptions expose only fixed categories. Credentials,
 prompts, evidence and raw generated text are never retained in this diagnostic field.
 
-An empty location (`[]`) denotes a model/root error. `value_error` at that location
-does not identify the particular cross-field rule; the sanitized diagnostics do
-not claim otherwise. Existing accepted outputs/evidence remain in their normal
+An empty location (`[]`) denotes a model/root error. Historical `value_error` at
+that location does not identify the particular cross-field rule and remains
+unresolved. New invariant codes identify the first rejected rule family, not all
+errors or semantic correctness; see [Phase 5C.1](phase5c.md). Existing accepted outputs/evidence remain in their normal
 review fields. Diagnostics are evaluator-local, do not enter model inputs, and do
 not change production error codes, partial-result behavior or failed-case metrics.
 Source fingerprints now include the diagnostic module. Offline tests exercise
