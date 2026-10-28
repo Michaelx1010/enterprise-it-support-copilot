@@ -12,11 +12,11 @@ from app.providers.openai_synthesis import OpenAISynthesis, MAX_OUTPUT_TOKENS
 from app.providers.synthesis import SynthesisError
 
 
-def test_sdk_schema_and_independent_settings(planner_client, planner_response, synthesis_report, monkeypatch):
+def test_sdk_schema_and_independent_settings(planner_client, planner_response, synthesis_report, as_synthesis_draft, monkeypatch):
     requests = []
     def handler(request):
         requests.append(json.loads(request.content))
-        return httpx.Response(200, json=planner_response(raw_text=json.dumps(synthesis_report)))
+        return httpx.Response(200, json=planner_response(raw_text=json.dumps(as_synthesis_draft(synthesis_report))))
     monkeypatch.setenv('OPENAI_SYNTHESIS_MODEL', 'synthesis-only')
     monkeypatch.setenv('OPENAI_PLANNER_MODEL', 'planner-only')
     client = planner_client(handler, max_retries=5)
@@ -49,8 +49,8 @@ def test_sdk_schema_and_independent_settings(planner_client, planner_response, s
     ({'status': 'incomplete'}, 'incomplete'), ({'status': 'failed'}, 'incomplete'),
     ({'raw_text': '{'}, 'invalid_output'), ({'raw_text': '{}'}, 'invalid_output'),
 ])
-def test_bad_responses_are_sanitized(planner_client, planner_response, synthesis_report, options, code):
-    body = planner_response(**({'raw_text': json.dumps(synthesis_report)} | options))
+def test_bad_responses_are_sanitized(planner_client, planner_response, synthesis_report, as_synthesis_draft, options, code):
+    body = planner_response(**({'raw_text': json.dumps(as_synthesis_draft(synthesis_report))} | options))
     provider = OpenAISynthesis(planner_client(lambda request: httpx.Response(200, json=body)))
     with pytest.raises(SynthesisError) as error:
         provider.generate(instructions='rules', payload='data')
@@ -58,8 +58,8 @@ def test_bad_responses_are_sanitized(planner_client, planner_response, synthesis
 
 
 @pytest.mark.parametrize('variant', ['two_messages', 'two_outputs', 'tool_call'])
-def test_ambiguous_responses_rejected(planner_client, planner_response, synthesis_report, variant):
-    body = planner_response(raw_text=json.dumps(synthesis_report))
+def test_ambiguous_responses_rejected(planner_client, planner_response, synthesis_report, as_synthesis_draft, variant):
+    body = planner_response(raw_text=json.dumps(as_synthesis_draft(synthesis_report)))
     if variant == 'two_messages': body['output'].append(deepcopy(body['output'][0]))
     elif variant == 'two_outputs': body['output'][0]['content'] *= 2
     else: body['output'].append({'type': 'function_call', 'call_id': 'bad', 'name': 'reset_account', 'arguments': '{}'})

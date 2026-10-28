@@ -13,12 +13,10 @@ import pytest
 
 from app.investigation.schemas import InvestigationResult, InvestigationSynthesis
 from app.providers.openai_recommendation import OpenAIRecommendation
-from app.providers.openai_synthesis import OpenAISynthesis
 from app.providers.recommendation import RecommendationError
-from app.providers.synthesis import SynthesisError
 from app.rag.schemas import RecommendationResult, SupportRecommendation
 from evaluation.live_investigation import project_report
-from evaluation.synthesis_diagnostics import INVARIANT_TYPES, ObservedSynthesis, error_details
+from evaluation.synthesis_diagnostics import INVARIANT_TYPES, ParseObserver, error_details
 
 VARIANTS = [
     ('supported_without_steps', 'status_steps_mismatch'),
@@ -70,24 +68,26 @@ def test_invariants_survive_nested_validation_without_values(variant, code, synt
 
 
 @pytest.mark.parametrize('variant,code', VARIANTS)
-def test_sdk_runs_same_contract_once_with_identifiable_error(variant, code, synthesis_report,
+def test_sdk_still_validates_legacy_canonical_contract_with_identifiable_error(variant, code, synthesis_report,
         planner_client, planner_response):
     calls = []
     candidate = contradiction(synthesis_report, variant)
     def handler(request):
         calls.append(json.loads(request.content))
         return httpx.Response(200, json=planner_response(raw_text=json.dumps(candidate)))
-    observer = ObservedSynthesis(OpenAISynthesis(planner_client(handler), model='test-model'))
-    with pytest.raises(SynthesisError) as caught:
-        observer.generate(instructions='PRIVATE prompt', payload='PRIVATE evidence')
-    assert caught.value.code == 'invalid_output'
+    events = []
+    observer = ParseObserver(planner_client(handler), events)
+    with pytest.raises(ValidationError) as caught:
+        observer.responses.parse(model='test-model', text_format=InvestigationSynthesis,
+            input=[{'role': 'system', 'content': 'PRIVATE prompt'}, {'role': 'user', 'content': 'PRIVATE evidence'}])
+    assert caught.value.errors()[0]['type'] == code
     assert len(calls) == 1
     assert calls[0]['input'] == [{'role': 'system', 'content': 'PRIVATE prompt'},
                                  {'role': 'user', 'content': 'PRIVATE evidence'}]
     assert calls[0]['text']['format']['schema'] == to_strict_json_schema(InvestigationSynthesis)
-    assert observer.events[0]['stage'] == 'sdk_parse'
-    assert observer.events[0]['errors'] == [{'type': code, 'loc': [], 'location_truncated': False}]
-    assert 'PRIVATE' not in json.dumps(observer.events)
+    assert events[0]['stage'] == 'sdk_parse'
+    assert events[0]['errors'] == [{'type': code, 'loc': [], 'location_truncated': False}]
+    assert 'PRIVATE' not in json.dumps(events)
 
 
 @pytest.mark.parametrize('variant,code', VARIANTS[:-1])

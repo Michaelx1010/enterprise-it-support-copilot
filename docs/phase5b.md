@@ -168,7 +168,7 @@ The saved synthesis usage is 4,338 input tokens and 1,181 output tokens. The sav
 database verification passed. These are observations from that pilot, not a quality
 estimate for the four-scenario evaluation set.
 
-The existing production code has these `invalid_output` paths:
+At the time of this pilot, production code had these `invalid_output` paths:
 
 | Boundary | Conditions |
 | --- | --- |
@@ -188,6 +188,14 @@ Field type, text length and list bounds can also cause rejection. See the offici
 [Structured Outputs guide](https://developers.openai.com/api/docs/guides/structured-outputs)
 for the SDK/Pydantic parsing boundary; the precise checks above come from this
 repository and its locked SDK.
+
+Since [Phase 5C.2a](phase5c.md), SDK parsing/provider revalidation use the versioned
+`InvestigationSynthesisDraftV1`, whose validator derives the escalation Boolean
+from current typed steps and invokes the same canonical contract. The application
+still receives `InvestigationSynthesis`. The same error boundaries remain; draft
+version/extra-field errors also reject. Metering recognizes both schema names as
+synthesis, and diagnostics allow the fixed `schema_version` field location without
+retaining values. This does not reinterpret any archived pilot failure.
 
 Normally incomplete responses, refusals and absent parsed output have separate
 codes (`incomplete`, `refusal`, `missing_output`). However, parsing runs **before**

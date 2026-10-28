@@ -20,7 +20,7 @@ INVARIANT_TYPES = frozenset(('status_steps_mismatch', 'escalation_steps_mismatch
 KNOWN_TYPES = frozenset(get_args(ErrorType)) | INVARIANT_TYPES
 SCHEMA = InvestigationSynthesis.model_json_schema()
 KNOWN_LOCATIONS = frozenset(SCHEMA['properties']) | frozenset(SCHEMA.get('$defs', {})) | frozenset(
-    key for definition in SCHEMA.get('$defs', {}).values() for key in definition.get('properties', {}))
+    key for definition in SCHEMA.get('$defs', {}).values() for key in definition.get('properties', {})) | {'schema_version'}
 ERROR_CODES = frozenset(('provider_failure', 'invalid_output', 'invalid_citation', 'incomplete',
                          'refusal', 'missing_output', 'missing_limitations', 'context_limit', 'deadline'))
 

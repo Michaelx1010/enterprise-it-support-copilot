@@ -114,7 +114,7 @@ def test_construction_failure_closes_client(request_file, live_boundaries, plann
 
 @pytest.mark.parametrize('outcome', ['supported', 'clarify', 'failure', 'invalid_citation'])
 def test_opt_in_synthesis_cli(request_file, live_boundaries, planner_client, planner_response,
-                             synthesis_report, monkeypatch, capsys, outcome):
+                             synthesis_report, as_synthesis_draft, monkeypatch, capsys, outcome):
     models = []
     def handler(request):
         body = json.loads(request.content)
@@ -127,10 +127,10 @@ def test_opt_in_synthesis_cli(request_file, live_boundaries, planner_client, pla
         if name == 'PlannerResponse':
             decision = {'kind': 'clarify', 'missing_fields': ['ticket_details']} if outcome == 'clarify' else {'kind': 'finish'}
             return httpx.Response(200, json=planner_response(decision))
-        assert name == 'InvestigationSynthesis' and body['model'] == 'independent-synthesis'
+        assert name == 'InvestigationSynthesisDraftV1' and body['model'] == 'independent-synthesis'
         if outcome == 'failure': return httpx.Response(500, json={'error': {'message': 'CANARY', 'type': 'api_error'}})
         if outcome == 'invalid_citation': synthesis_report['steps'][0]['references'][0]['chunk_id'] = 'fake'
-        return httpx.Response(200, json=planner_response(raw_text=json.dumps(synthesis_report)))
+        return httpx.Response(200, json=planner_response(raw_text=json.dumps(as_synthesis_draft(synthesis_report))))
     client = planner_client(handler)
     monkeypatch.setattr(OpenAIPlanner, 'from_environment', Mock(return_value=OpenAIPlanner(client, model='planner-only')))
     monkeypatch.setenv('OPENAI_SYNTHESIS_MODEL', 'independent-synthesis')

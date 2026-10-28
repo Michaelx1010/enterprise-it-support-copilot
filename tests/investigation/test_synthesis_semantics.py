@@ -23,7 +23,7 @@ CASES = load_cases(Path('evaluation/investigation_synthesis_semantics.jsonl'))
 
 
 @pytest.mark.parametrize('case', CASES, ids=lambda case: case.id)
-def test_smoke_error_and_grounded_contrast_replays(case, planner_client, planner_response):
+def test_smoke_error_and_grounded_contrast_replays(case, planner_client, planner_response, as_synthesis_draft):
     calls = []
     def handler(request):
         body = json.loads(request.content)
@@ -33,7 +33,7 @@ def test_smoke_error_and_grounded_contrast_replays(case, planner_client, planner
         schema = body['text']['format']['schema']
         assert 'establish' in schema['properties']['escalation_reason']['description']
         assert 'installed versions' in schema['properties']['findings']['description']
-        return httpx.Response(200, json=planner_response(raw_text=json.dumps(case.candidate)))
+        return httpx.Response(200, json=planner_response(raw_text=json.dumps(as_synthesis_draft(case.candidate))))
     result = evaluate(case, OpenAISynthesis(planner_client(handler)))
     assert len(calls) == 1 and result['outcome'] == case.expected_replay == 'accepted'
     assert result['report'] == case.candidate
@@ -71,7 +71,7 @@ def test_current_and_future_handoffs_preserve_escalation_invariants(case_id):
 
 
 def test_three_lookups_then_synthesis_preserves_observations_and_budgets(
-        inv_request, inv_dependencies, planner_client, planner_response):
+        inv_request, inv_dependencies, planner_client, planner_response, as_synthesis_draft):
     # Reconstruct the smoke-test workflow with mocked decisions and an authored report.
     decisions = [
         {'kind': 'lookup', 'tool': 'get_employee_account_status', 'arguments': {'employee_id': 'EMP-001'}},
@@ -91,7 +91,7 @@ def test_three_lookups_then_synthesis_preserves_observations_and_budgets(
             planner_calls.append(payload)
             return httpx.Response(200, json=planner_response(choice))
         synthesis_payloads.append(payload)
-        assert payload['prompt_version'] == PROMPT_VERSION == 'investigation-synthesis-v2'
+        assert payload['prompt_version'] == PROMPT_VERSION == 'investigation-synthesis-v3'
         assert body['input'][0]['content'] == INSTRUCTIONS
         report = deepcopy(next(c.candidate for c in CASES if c.id == 'escalation-grounded'))
         # Preserve real fixture timestamps in prose rather than copying the compact eval dates.
@@ -100,7 +100,7 @@ def test_three_lookups_then_synthesis_preserves_observations_and_budgets(
         for item in [report['summary'], *report['steps'], *report['uncertainties']]:
             for ref in item['references']:
                 if ref['kind'] == 'kb_chunk': ref['chunk_id'] = chunks[0].chunk.chunk_id
-        return httpx.Response(200, json=planner_response(raw_text=json.dumps(report)))
+        return httpx.Response(200, json=planner_response(raw_text=json.dumps(as_synthesis_draft(report))))
     client = planner_client(handler)
     result = run_investigation(inv_request, dependencies=replace(inv_dependencies,
         store=ReplayStore(inv_dependencies.store.spec, chunks), planner=OpenAIPlanner(client),

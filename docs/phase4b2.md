@@ -34,6 +34,7 @@ planning for deterministic tests. No live synthesis was run for this milestone.
 | File | Responsibility |
 | --- | --- |
 | `app/investigation/schemas.py` | Application-owned report, typed references, source membership and structural escalation validation |
+| `app/investigation/synthesis_draft.py` | Since Phase 5C.2a: versioned model-facing draft; derives the canonical escalation flag from typed current steps |
 | `app/investigation/synthesis.py` | Fixed prompt, immutable JSON evidence snapshot, abstention and provider-independent validation |
 | `app/providers/synthesis.py` | One-method provider protocol and fixed error type |
 | `app/providers/openai_synthesis.py` | Independent model setting, strict Structured Outputs, bounded SDK request and sanitized errors |
@@ -65,8 +66,14 @@ adding operational evidence. It does not make a second standalone RAG request.
 
 Every statement/action requires one to eight distinct typed references. All
 objects are closed; response fields are required, including nullable fields.
-Each text is nonblank and at most 600 characters. The SDK receives the
-application schema using `responses.parse(text_format=InvestigationSynthesis)`;
+Each text is nonblank and at most 600 characters. Since [Phase 5C.2a](phase5c.md),
+the SDK uses `responses.parse(text_format=InvestigationSynthesisDraftV1)`.
+The draft requires `schema_version="investigation-synthesis-draft-v1"` and omits
+`escalation_required`; the provider derives it only from escalation-typed current
+steps, validates through the unchanged canonical contract, and returns the same
+public report. Scripted reports retain the canonical format. All other draft field
+constraints are unchanged. Neither unknown versions nor legacy Boolean fields are
+silently accepted. CLI flags and public output fields are unchanged. The
 nested reference alternatives use `anyOf` and explicit required discriminators,
 following the [Structured Outputs requirements](https://developers.openai.com/api/docs/guides/structured-outputs).
 

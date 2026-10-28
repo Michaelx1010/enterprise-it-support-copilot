@@ -33,7 +33,8 @@ class MeteredTransport(httpx.BaseTransport):
         payload = json.loads(request.content) if request.content else {}
         schema = payload.get('text', {}).get('format', {}).get('name')
         stage = {'TicketClassification': 'classification', 'PlannerResponse': 'planner',
-                 'InvestigationSynthesis': 'synthesis', 'SupportRecommendation': 'recommendation'}.get(
+                 'InvestigationSynthesis': 'synthesis', 'InvestigationSynthesisDraftV1': 'synthesis',
+                 'SupportRecommendation': 'recommendation'}.get(
                      schema, 'connectivity' if request.method == 'GET' else 'embedding')
         row = {'case_id': self.case_id, 'arm': self.arm, 'stage': stage,
                'model_requested': payload.get('model'), 'model_returned': None,

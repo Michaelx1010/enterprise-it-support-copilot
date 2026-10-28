@@ -228,7 +228,7 @@ def test_mocked_llm_with_real_pgvector_and_all_operational_tools(investigation_d
 
 @pytest.mark.parametrize('invalid', [False, True])
 def test_grounded_synthesis_uses_actual_readonly_evidence(investigation_db, reader_pair, inv_request,
-        inv_dependencies, planner_client, planner_response, synthesis_report, invalid):
+        inv_dependencies, planner_client, planner_response, synthesis_report, as_synthesis_draft, invalid):
     import httpx
     from app.providers.openai_synthesis import OpenAISynthesis
 
@@ -244,7 +244,7 @@ def test_grounded_synthesis_uses_actual_readonly_evidence(investigation_db, read
                                          'references': [observation['reference']]}]
         assert observation['observation']['result']['account']['observed_at']
         assert not observation['observation']['result']['live_verified']
-        return httpx.Response(200, json=planner_response(raw_text=json.dumps(synthesis_report)))
+        return httpx.Response(200, json=planner_response(raw_text=json.dumps(as_synthesis_draft(synthesis_report))))
     before = snapshot(investigation_db)
     deps = replace(inv_dependencies, db=reader_pair[0], store=reader_pair[1], fixture_lookup=None,
         embedder=ScriptedEmbedder(build_query(inv_request.ticket), SPEC, VECTOR),
@@ -285,7 +285,7 @@ def test_live_evaluation_audit_rejects_admin_fallback(investigation_db, reader_p
 
 @pytest.mark.parametrize('invalid', [False, True])
 def test_live_pair_reuses_real_retrieval_and_readonly_lookups(investigation_db, reader_pair, inv_dependencies,
-        planner_response, synthesis_report, invalid):
+        planner_response, synthesis_report, as_synthesis_draft, invalid):
     import httpx
     from openai import OpenAI
     from app.providers.openai_planner import OpenAIPlanner
@@ -303,13 +303,13 @@ def test_live_pair_reuses_real_retrieval_and_readonly_lookups(investigation_db, 
         schema = raw['text']['format']['name']
         if schema == 'PlannerResponse':
             body = planner_response(next(choices))
-        elif schema == 'InvestigationSynthesis':
+        elif schema == 'InvestigationSynthesisDraftV1':
             evidence = payload['untrusted_evidence']
             actual_kb_ids.extend(e['reference']['chunk_id'] for e in evidence['kb_procedures'])
             assert evidence['operational_observations'][0]['observation']['result']['account']['observed_at']
             assert not evidence['operational_observations'][0]['observation']['result']['live_verified']
             synthesis_report['steps'][0]['references'][0]['chunk_id'] = 'invented' if invalid else actual_kb_ids[0]
-            body = planner_response(raw_text=json.dumps(synthesis_report))
+            body = planner_response(raw_text=json.dumps(as_synthesis_draft(synthesis_report)))
         else:
             assert [e['chunk_id'] for e in payload['evidence']] == actual_kb_ids
             assert set(payload) == {'ticket', 'evidence'}

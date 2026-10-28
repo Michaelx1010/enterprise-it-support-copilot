@@ -111,3 +111,14 @@ def synthesis_report(inv_dependencies):
                            'references': [{'kind': 'investigation_context'}]}],
         'escalation_required': False, 'escalation_reason': None,
     }
+
+
+@pytest.fixture
+def as_synthesis_draft():
+    """Adapt authored canonical fixtures for SDK mocks; never alter frozen files."""
+    def draft(report):
+        value = deepcopy(report)
+        value.pop('escalation_required')
+        value['schema_version'] = 'investigation-synthesis-draft-v1'
+        return value
+    return draft

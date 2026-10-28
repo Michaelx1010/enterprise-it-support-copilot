@@ -10,13 +10,13 @@ from evaluation.investigation_synthesis import ReplayProvider, evaluate, load_ca
 
 
 @pytest.mark.parametrize('case', load_cases(), ids=lambda case: case.id)
-def test_reviewed_cases_through_mocked_structured_outputs(case, planner_client, planner_response):
+def test_reviewed_cases_through_mocked_structured_outputs(case, planner_client, planner_response, as_synthesis_draft):
     calls = []
     def handler(request):
         calls.append(request)
         if case.candidate is None:
             return httpx.Response(500, json={'error': {'message': 'unavailable'}})
-        return httpx.Response(200, json=planner_response(raw_text=json.dumps(case.candidate)))
+        return httpx.Response(200, json=planner_response(raw_text=json.dumps(as_synthesis_draft(case.candidate))))
     result = evaluate(case, OpenAISynthesis(planner_client(handler)))
     assert result['outcome'] == case.expected_replay
     assert len(calls) == 1

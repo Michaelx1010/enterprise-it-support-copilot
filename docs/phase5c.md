@@ -1,10 +1,12 @@
 # Phase 5C: baseline consolidation and implementation proposal
 
 Baseline review: 2026-10-26. Phase 5C.1 final review passed: 2026-10-27.
-Only invariant error identities change in production; validation conditions,
-JSON Schemas, prompts, workflows and frozen evaluation inputs are preserved.
-5C.2 and later checkpoints remain unimplemented. No new live requests. This is a
-small development sample, not a held-out benchmark.
+Phase 5C.2a final review passed on 2026-10-28: the live synthesis provider accepts a
+versioned draft and derives the canonical escalation flag from typed steps.
+Public report schemas, standalone RAG, graph/planner behavior and frozen inputs
+are preserved. Only the synthesis wire contract and its matching prompt instructions
+change. 5C.2b and later checkpoints remain unimplemented. No new live requests.
+This is a small development sample, not a held-out benchmark.
 
 ## Preserved baseline and provenance
 
@@ -241,25 +243,62 @@ Add parity tests for Phase 2B and synthesis, nested SDK parsing, and sanitizatio
 Historical failures stay unknown. This increment alone cannot demonstrate a
 model-quality improvement or recover the rejected outputs.
 
-### 5C.2a: derive the redundant current escalation flag (not implemented)
+### 5C.2a: derive the redundant current escalation flag (implemented, final review passed)
 
-Proposed files across these three separate checkpoints: `app/investigation/schemas.py`, `app/investigation/synthesis.py`,
-`app/providers/openai_synthesis.py`, evaluation projection/telemetry adapters and
-schema/provider/graph compatibility tests. Preserve standalone Phase 2B contracts.
+`app/investigation/synthesis_draft.py` owns `InvestigationSynthesisDraftV1`.
+`OpenAISynthesis.responses.parse()` now uses that model instead of the canonical
+report. The SDK validates the draft, including conversion through the existing
+canonical validators. The provider revalidates the parsed object, converts it to
+`InvestigationSynthesis`, and returns the same provider-interface type as before.
+`generate_synthesis` and the outer investigation result still validate all evidence
+IDs and required limitations. No graph, planner, CLI or projection changes are needed.
 
-Use an application-owned, explicitly versioned synthesis draft at the provider
-boundary. The smallest first reduction is to omit the independently generated
-`escalation_required` flag from the draft and derive it **only from explicit
-current escalation-typed steps** before canonical validation. Keep status/steps
-and reason consistency checks; inconsistent reason/status still rejects. This
-is a declared new wire contract, not repair of rejected legacy outputs. Do not
-infer step type from text or turn a conditional item into a current action.
+| Field/behavior | Model-facing draft V1 | Canonical public report |
+| --- | --- | --- |
+| `schema_version` | Required literal `investigation-synthesis-draft-v1` | Absent; no output-envelope change |
+| `escalation_required` | Absent; supplying it rejects as an extra field | Required Boolean, derived from `any(step.step_type == "escalation" for step in steps)` |
+| Status, summary, findings, steps, missing information, uncertainties, reason | Existing fields, types, limits and descriptions | Unchanged |
+| Citation validation | Same nested reference and KB-action rules | Existing membership validation against retrieved chunks and successful observations |
+| Future guidance / typed trigger evidence | No new fields | No new fields |
 
-Checkpoint acceptance: current handoff, no-handoff, abstention and inconsistent
-status/reason cases map to the same canonical rules. Retain legacy/scripted
-compatibility and one-call failure/evidence semantics. Update telemetry schema-name
-mapping if necessary. Stop for review before conditional guidance; this checkpoint
-must not add future-guidance or trigger-evidence fields.
+The draft copies canonical field definitions without inheriting the independently
+supplied Boolean. This retains field descriptions/constraints and nested schemas
+without editing `InvestigationSynthesis` or Phase 2B. The conversion adds exactly
+the derived Boolean and removes the draft version. It never reads action/reason
+text to infer a type, relabels steps, removes reasons, changes status, or repairs
+legacy outputs. A missing/wrong version or the removed Boolean rejects. Historical
+canonical reports and scripted providers still use their original contract;
+they do not pass through a legacy-to-draft production fallback.
+
+Existing canonical validation remains authoritative: supported requires steps;
+insufficient evidence forbids steps; escalation steps require a non-null reason
+with KB support; without escalation steps the reason must be null. Typed steps
+determine the flag, so flag/step disagreement cannot arise from a valid draft.
+The canonical flag/step invariant still rejects inconsistent scripted/provider
+reports. Unknown KB/observation IDs reject later as `invalid_citation`; valid IDs
+still do not prove that a source entails a claim or establishes a trigger.
+
+Prompt `investigation-synthesis-v3` aligns the existing instructions with the new
+wire contract: request the version, omit the Boolean, preserve current-step/reason
+consistency and the existing prohibition on unconfirmed future handoffs. Grounding
+policy, model/settings, one-request/no-retry behavior and safety controls stay the
+same. `evaluation/live_telemetry.py` recognizes both old and new SDK schema names
+as synthesis. The diagnostic sanitizer adds only the fixed `schema_version` field
+location; no additional error messages, values, inputs or context are retained.
+Frozen evaluations, baseline reports and standalone Phase 2B are unchanged.
+
+The CLI commands and flags in the Phase 4B.2 documentation remain valid; only the
+opted-in live synthesis provider's wire contract changes. Live evaluation metadata
+records prompt v3 and the new application fingerprint. Archived attempts retain
+their old configuration and failure denominators. New SDK mocks explicitly create
+draft responses; deterministic fixture replay continues to use canonical reports.
+
+This checkpoint does **not** establish whether a model-labelled escalation is
+actually justified now. If a model incorrectly types a future handoff as a current
+escalation and supplies a structurally valid reason, validation can still accept
+it. Existing negative controls deliberately demonstrate this semantic limitation.
+No keyword filter, silent correction, conditional-guidance representation or
+typed trigger evidence has been added. Stop for review before 5C.2b.
 
 ### 5C.2b: add conditional guidance (not implemented)
 
@@ -416,3 +455,47 @@ fingerprints and archived baseline hashes remained unchanged. All ten milestone
 files were reviewed; no credentials, local configuration or generated reports are
 included. Consolidation code/manifest use repository-relative paths and document
 the required local archives. No paid calls or Phase 5C.2 implementation occurred.
+
+## Phase 5C.2a verification (2026-10-27)
+
+The complete suite passed: **753 tests in 68.36 seconds**, including **74 PostgreSQL
+integration tests**. All 721 existing cases remain, with SDK mocks updated to the
+versioned response format, plus 32 focused draft-contract regressions. The twelve
+canonical/Phase 2B JSON Schema hash checks still pass. Three additional checks
+confirm that draft schemas differ only by the version and removed Boolean while
+sharing all remaining field definitions and nested schemas.
+
+Coverage includes confirmed current handoffs, VPN failure without a confirmed
+trigger, troubleshooting, abstention, status/reason contradictions, missing KB
+support, unknown references, removed-field/version rejection, mutated SDK models,
+legacy/scripted parity, live planner/CLI contracts, and one-attempt failure paths.
+A partial investigation with three lookups retains its prior classification error,
+all observations, KB evidence, planner count and lookup trace after SDK validation,
+citation or HTTP failure. HTTP 200 followed by rejection still counts as one
+synthesis request; missing usage is recorded as unknown, not measured zero usage.
+All SDK requests in these tests use mocks. These results measure code behavior,
+not live-model acceptance, grounding or escalation precision.
+
+Before/after read-only application fingerprints match for all **79 operational
+records and 36 KB chunks, vectors and metadata**. No temporary test reader roles
+remain. All eleven frozen evaluation JSON/JSONL files, twelve KB Markdown documents,
+twelve original Phase 5B artifacts and five pre-existing Phase 5C archive files
+match their pre-change hashes. The tracked consolidator independently verifies
+all seven saved pairs without modifying originals or making API/database calls.
+Standalone RAG, classifier, retrieval, planner, graph, operational tools and their
+data remain unchanged. No dependencies, database migrations or reseeding were needed.
+
+No paid calls, staging, commits or pushes were made. 5C.2b/5C.2c remain unimplemented.
+Live server acceptance of the new schema and any improvement in model reliability
+remain unmeasured until a separately approved pilot. The draft reduces redundant
+model choices; it does not remove reason/status validation failures or establish
+the semantic applicability of a handoff.
+
+Finalization review (2026-10-28) found no blocking issues across all eighteen
+changed files. The full suite passed again: **753 tests in 75.51 seconds**, including
+74 PostgreSQL integration tests and all twelve canonical JSON Schema parity checks.
+Operational/KB/vector fingerprints, frozen evaluation inputs and archived baseline
+hashes remained unchanged; no temporary test reader roles remained. No credentials,
+local environment files or generated reports are included in the milestone. The
+user authorized a normal commit/push after these checks. No paid API calls or
+Phase 5C.2b/5C.2c development occurred during finalization.

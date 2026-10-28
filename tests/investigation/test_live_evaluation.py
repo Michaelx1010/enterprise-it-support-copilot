@@ -24,7 +24,7 @@ from evaluation.live_telemetry import MeteredTransport, usage_totals
 
 
 @pytest.fixture
-def paired_api(planner_response):
+def paired_api(planner_response, as_synthesis_draft):
     clients = []
 
     def create(case, mutate=None):
@@ -44,8 +44,8 @@ def paired_api(planner_response):
                     candidate = case.classification.model_dump()
                 elif stage == 'PlannerResponse':
                     candidate = {'decision': next(decisions)}
-                elif stage == 'InvestigationSynthesis':
-                    candidate = deepcopy(case.agent_response)
+                elif stage == 'InvestigationSynthesisDraftV1':
+                    candidate = as_synthesis_draft(case.agent_response)
                 else:
                     candidate = deepcopy(case.rag_response)
                 body = planner_response(raw_text=json.dumps(candidate))
@@ -81,7 +81,7 @@ def test_four_pilots_use_production_providers_and_identical_evidence(case, paire
     assert [e['result'] for e in row['agent_result']['kb_evidence']] == row['shared_kb']
     bodies = {r['text']['format']['name']: json.loads(r['input'][1]['content'])
               for r in requests if 'text' in r and r['text']['format']['name'] != 'TicketClassification'}
-    agent, standalone = bodies['InvestigationSynthesis'], bodies['SupportRecommendation']
+    agent, standalone = bodies['InvestigationSynthesisDraftV1'], bodies['SupportRecommendation']
     assert standalone['ticket'] == agent['untrusted_evidence']['ticket'] == case.request.ticket.model_dump()
     for a, b in zip(agent['untrusted_evidence']['kb_procedures'], standalone['evidence'], strict=True):
         assert {key: a['result']['chunk'][key] for key in b} == b
@@ -100,8 +100,8 @@ def test_four_pilots_use_production_providers_and_identical_evidence(case, paire
 
 
 @pytest.mark.parametrize('stage, failure, outcome', [
-    ('InvestigationSynthesis', 'http', 'failed'), ('InvestigationSynthesis', 'schema', 'rejected'),
-    ('InvestigationSynthesis', 'citation', 'rejected'), ('SupportRecommendation', 'http', 'failed'),
+    ('InvestigationSynthesisDraftV1', 'http', 'failed'), ('InvestigationSynthesisDraftV1', 'schema', 'rejected'),
+    ('InvestigationSynthesisDraftV1', 'citation', 'rejected'), ('SupportRecommendation', 'http', 'failed'),
     ('SupportRecommendation', 'schema', 'rejected'), ('SupportRecommendation', 'citation', 'rejected'),
 ])
 def test_failures_preserve_evidence_and_are_not_successful_abstentions(paired_api, stage, failure, outcome):
@@ -112,7 +112,7 @@ def test_failures_preserve_evidence_and_are_not_successful_abstentions(paired_ap
             candidate = json.loads(body['output'][0]['content'][0]['text'])
             if failure == 'schema':
                 candidate['steps'] = []
-            elif stage == 'InvestigationSynthesis':
+            elif stage == 'InvestigationSynthesisDraftV1':
                 candidate['steps'][0]['references'][0]['chunk_id'] = 'invented'
             else:
                 candidate['steps'][0]['supporting_chunk_ids'] = ['invented']
@@ -121,7 +121,7 @@ def test_failures_preserve_evidence_and_are_not_successful_abstentions(paired_ap
     case = live.select_cases(['vpn-confirmed'])[0]
     deps, rag, meter, requests, _ = paired_api(case, mutate)
     row = live.run_pair(case, dependencies=deps, standalone=rag, meter=meter)
-    arm = 'agent' if stage == 'InvestigationSynthesis' else 'standalone'
+    arm = 'agent' if stage == 'InvestigationSynthesisDraftV1' else 'standalone'
     assert row[arm]['outcome'] == outcome and row[arm]['recommendation'] is None
     assert len(row['agent_result']['operational_evidence']) == 3
     assert len(row['shared_kb']) == 2

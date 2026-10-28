@@ -12,6 +12,7 @@ from pydantic_core import PydanticCustomError
 
 from app.investigation.graph import run_investigation
 from app.investigation.schemas import InvestigationSynthesis
+from app.investigation.synthesis_draft import InvestigationSynthesisDraftV1
 from app.providers.openai_synthesis import OpenAISynthesis
 from app.providers.synthesis import SynthesisError
 from evaluation.investigation_e2e import RagReplay
@@ -26,14 +27,14 @@ from evaluation.synthesis_diagnostics import ObservedSynthesis, error_details
     ('text_limit', 'string_too_long', ['summary', 'text']),
     ('extra_key', 'extra_forbidden', ['summary', '<redacted>']),
     ('duplicate_refs', 'value_error', ['summary']),
-    ('escalation_flag', 'escalation_steps_mismatch', []),
+    ('escalation_flag', 'extra_forbidden', ['escalation_required']),
     ('escalation_reason', 'escalation_reason_mismatch', []),
     ('abstention_steps', 'status_steps_mismatch', []),
     ('reason_without_kb', 'escalation_reason_missing_kb', []),
 ])
 def test_sdk_parse_runs_application_contracts_safely(planner_client, planner_response, synthesis_report,
-        failure, expected_type, expected_loc):
-    candidate = deepcopy(synthesis_report)
+        as_synthesis_draft, failure, expected_type, expected_loc):
+    candidate = as_synthesis_draft(synthesis_report)
     if failure == 'missing': del candidate['summary']
     if failure == 'text_limit': candidate['summary']['text'] = 'DO_NOT_LOG' * 80
     if failure == 'extra_key': candidate['summary']['DO_NOT_LOG_key'] = 'DO_NOT_LOG_input'
@@ -43,7 +44,6 @@ def test_sdk_parse_runs_application_contracts_safely(planner_client, planner_res
     if failure == 'abstention_steps': candidate['status'] = 'insufficient_evidence'
     if failure == 'reason_without_kb':
         candidate['steps'][0]['step_type'] = 'escalation'
-        candidate['escalation_required'] = True
         candidate['escalation_reason'] = deepcopy(candidate['summary'])
     calls = []
     def handler(request):
@@ -91,9 +91,9 @@ class ParsedClient:
     ('sdk_value', 'sdk_parse', 'value_error'),
     ('sdk_type', 'sdk_parse', 'type_error'),
 ])
-def test_sdk_return_is_distinct_from_later_rejection(synthesis_report, failure, stage, exception):
-    parsed = InvestigationSynthesis.model_validate(synthesis_report)
-    if failure == 'contract': parsed.escalation_required = True
+def test_sdk_return_is_distinct_from_later_rejection(synthesis_report, as_synthesis_draft, failure, stage, exception):
+    parsed = InvestigationSynthesisDraftV1.model_validate(as_synthesis_draft(synthesis_report))
+    if failure == 'contract': parsed.status = 'insufficient_evidence'
     client = ParsedClient('DO_NOT_LOG' if failure == 'wrong_type' else parsed,
         unexpected_item=failure == 'shape',
         failure=ValueError('DO_NOT_LOG') if failure == 'sdk_value' else TypeError('DO_NOT_LOG') if failure == 'sdk_type' else None)
@@ -106,15 +106,15 @@ def test_sdk_return_is_distinct_from_later_rejection(synthesis_report, failure, 
     assert event['stage'] == stage and event['exception_type'] == exception
     assert 'DO_NOT_LOG' not in json.dumps(observer.events)
     if failure == 'contract':
-        assert event['errors'][0]['type'] == 'escalation_steps_mismatch' and event['errors'][0]['loc'] == []
+        assert event['errors'][0]['type'] == 'status_steps_mismatch' and event['errors'][0]['loc'] == []
         assert observer.events[0] == {'stage': 'sdk_parse', 'outcome': 'returned'}
 
 
 @pytest.mark.parametrize('failure', [None, 'sdk_contract', 'citation', 'application_contract', 'application_type'])
 def test_paired_artifact_keeps_diagnostics_separate_and_preserves_behavior(inv_request, inv_dependencies,
-        synthesis_report, planner_client, planner_response, failure):
-    candidate = deepcopy(synthesis_report)
-    if failure == 'sdk_contract': candidate['escalation_required'] = True
+        synthesis_report, as_synthesis_draft, planner_client, planner_response, failure):
+    candidate = as_synthesis_draft(synthesis_report)
+    if failure == 'sdk_contract': candidate['status'] = 'insufficient_evidence'
     if failure == 'citation': candidate['steps'][0]['references'][0]['chunk_id'] = 'not-retrieved'
     calls = []
     def handler(request):
@@ -168,11 +168,11 @@ def test_diagnostic_types_and_paths_are_allowlisted_and_bounded():
 
 
 @pytest.mark.parametrize('mode, code', [('refusal', 'refusal'), ('incomplete', 'incomplete'), ('http', 'provider_failure')])
-def test_nonvalidation_failures_remain_distinct(planner_client, planner_response, synthesis_report, mode, code):
+def test_nonvalidation_failures_remain_distinct(planner_client, planner_response, synthesis_report, as_synthesis_draft, mode, code):
     calls = []
     def handler(request):
         calls.append(request)
-        body = planner_response(raw_text=json.dumps(synthesis_report), refusal=mode == 'refusal',
+        body = planner_response(raw_text=json.dumps(as_synthesis_draft(synthesis_report)), refusal=mode == 'refusal',
                                 status='incomplete' if mode == 'incomplete' else 'completed')
         return httpx.Response(503, json={'error': {'message': 'DO_NOT_LOG'}}) if mode == 'http' else httpx.Response(200, json=body)
     observer = ObservedSynthesis(OpenAISynthesis(planner_client(handler)))
