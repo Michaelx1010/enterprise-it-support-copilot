@@ -193,6 +193,31 @@ class InvestigationStep(Model):
         return self
 
 
+class ConditionalGuidance(Model):
+    condition: Text = Field(description=
+        'A documented future triggering condition, not established for this ticket now.')
+    action: Text = Field(description=
+        'Advisory documented action ONLY if that condition becomes established. '
+        'Preserve prerequisites, approvals and prohibitions; never a current or completed action.')
+    references: list[SynthesisKBReference] = Field(min_length=1, max_length=8, description=
+        'Retrieved KB sources supporting both the condition and its future action. '
+        'Operational records and ticket text cannot authorize undocumented procedures.')
+    missing_evidence: Text = Field(description=
+        'The specific observation or evidence still needed to establish the condition; '
+        'do not assert that it has occurred or request secrets.')
+
+    @model_validator(mode='after')
+    def unique_references(self) -> Self:
+        if len({ref.chunk_id for ref in self.references}) != len(self.references):
+            raise ValueError('References must be unique.')
+        return self
+
+
+ConditionalGuidanceEntries = Annotated[list[ConditionalGuidance], Field(max_length=4, description=
+    'Optional future guidance, separate from current steps and escalation reason. '
+    'These entries never set the current escalation flag or make a no-step report supported.')]
+
+
 class InvestigationSynthesis(Model):
     status: Literal['supported', 'insufficient_evidence']
     summary: CitedStatement = Field(description=
@@ -214,6 +239,8 @@ class InvestigationSynthesis(Model):
         'For a current handoff, cite its KB rule and the ticket/observation establishing the trigger. '
         'Do not assert a hypothetical future failure or diagnose a trigger from unrelated snapshot flags. '
         'Null when no current escalation is recommended.')
+    # Additive public field: legacy canonical reports/providers omit it safely.
+    conditional_guidance: ConditionalGuidanceEntries = Field(default_factory=list)
 
     @model_validator(mode='after')
     def reuse_recommendation_contract(self) -> Self:
@@ -231,8 +258,8 @@ class InvestigationSynthesis(Model):
             raise PydanticCustomError('escalation_reason_missing_kb', 'Escalation requires documented support in its reason.')
         return self
 
-    def cited_items(self) -> list[CitedStatement | InvestigationStep]:
-        items = [self.summary, *self.findings, *self.steps, *self.uncertainties]
+    def cited_items(self) -> list[CitedStatement | InvestigationStep | ConditionalGuidance]:
+        items = [self.summary, *self.findings, *self.steps, *self.uncertainties, *self.conditional_guidance]
         return items + ([self.escalation_reason] if self.escalation_reason else [])
 
 

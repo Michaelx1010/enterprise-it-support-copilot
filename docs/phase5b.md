@@ -197,6 +197,14 @@ version/extra-field errors also reject. Metering recognizes both schema names as
 synthesis, and diagnostics allow the fixed `schema_version` field location without
 retaining values. This does not reinterpret any archived pilot failure.
 
+Phase 5C.2b now requests `InvestigationSynthesisDraftV2` with required conditional
+guidance and the same deterministic current-step conversion. The public report
+adds an empty-default guidance list. Metering recognizes V2 too; diagnostic field
+locations include the new fixed schema names, still without values/messages.
+Paired projections/escalation metrics continue to use only current actions. Full
+agent outputs and manual worksheets retain future guidance separately. Original
+reports and baseline denominators are unchanged; this extension has no live result yet.
+
 Normally incomplete responses, refusals and absent parsed output have separate
 codes (`incomplete`, `refusal`, `missing_output`). However, parsing runs **before**
 the provider checks completion status; malformed output in an incomplete response

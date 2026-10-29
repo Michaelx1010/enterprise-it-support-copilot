@@ -1,11 +1,12 @@
 # Phase 5C: baseline consolidation and implementation proposal
 
 Baseline review: 2026-10-26. Phase 5C.1 final review passed: 2026-10-27.
-Phase 5C.2a final review passed on 2026-10-28: the live synthesis provider accepts a
-versioned draft and derives the canonical escalation flag from typed steps.
-Public report schemas, standalone RAG, graph/planner behavior and frozen inputs
-are preserved. Only the synthesis wire contract and its matching prompt instructions
-change. 5C.2b and later checkpoints remain unimplemented. No new live requests.
+Phase 5C.2a final review passed on 2026-10-28. Phase 5C.2b is implemented for review:
+draft V2 adds conditional future guidance, separate from current typed steps.
+The canonical report gains an optional list; all pre-existing fields and invariants,
+standalone RAG, graph/planner behavior and frozen inputs are preserved. The synthesis
+wire contract and matching prompt are versioned. 5C.2c and later checkpoints remain
+unimplemented. No new live requests.
 This is a small development sample, not a held-out benchmark.
 
 ## Preserved baseline and provenance
@@ -300,17 +301,103 @@ it. Existing negative controls deliberately demonstrate this semantic limitation
 No keyword filter, silent correction, conditional-guidance representation or
 typed trigger evidence has been added. Stop for review before 5C.2b.
 
-### 5C.2b: add conditional guidance (not implemented)
+### 5C.2b: conditional future guidance (implemented for review)
 
-Add `conditional_guidance` separately: documented condition, advisory future
-action, KB references, and evidence still needed. It does not contribute to the
-current escalation flag, steps or completed actions. With no current documented
-action, status remains insufficient_evidence even if future guidance exists.
+`InvestigationSynthesisDraftV2` extends the V1 draft with a required
+`conditional_guidance` list and literal version `investigation-synthesis-draft-v2`.
+The OpenAI provider requests/revalidates V2 and returns the canonical report through
+the same conversion method. Prompt `investigation-synthesis-v4` separates future
+advisory actions from current actions; model selection, request limits, retries,
+error codes and graph behavior are unchanged. No new dependency or graph node.
 
-Checkpoint acceptance: validated future KB references; future entries never set
-the current flag or enter current steps; no invented actions on unsupported cases.
-The paired legacy projection scores current actions only. Stop for review before
-adding typed trigger evidence.
+Each `ConditionalGuidance` entry has four required fields:
+
+| Field | Contract |
+| --- | --- |
+| `condition` | Nonblank text describing the documented, not-yet-established condition |
+| `action` | Nonblank advisory action only if the condition becomes established |
+| `references` | One to eight distinct typed KB chunk references; no ticket/operational/context references |
+| `missing_evidence` | Nonblank text identifying the observation/evidence still needed to establish the condition |
+
+Text fields retain the existing 600-character limit; the list permits zero to four
+entries. Types, bounds, required fields, duplicate references and extra fields are
+validated, not repaired. A KB ID must also belong to the retrieved evidence set.
+The entries join `cited_items()`, so existing application/result-envelope reference
+validation checks them, and synthesis citation-coverage counts include them. A
+structurally valid ID does not prove the condition or action is documented; that
+requires semantic review. Operational observations cannot authorize a future action.
+
+Current escalation remains exactly `any(step.step_type == "escalation" for step in
+steps)`. No guidance text, condition, reason or reference contributes to that value.
+Future entries cannot contain `step_type`, `escalation_required`, or `trigger_basis`.
+The unchanged canonical validators still enforce current status/steps, reason
+presence, KB support and flag/step agreement. Guidance alone requires
+`insufficient_evidence`, `steps=[]`, `escalation_required=false`, and a null current
+escalation reason. False still means undetermined on abstention, not safe. Guidance
+never records a completed action, changes tool execution, or sends an escalation.
+
+For a first VPN failure with no retry, a current connectivity check/reconnect can
+coexist with a future Network Support handoff conditional on persistent gateway
+errors. A reported persistent gateway error after retry can independently support
+a current escalation. A different future condition may coexist with that current
+handoff without contributing to its flag or reason. The prompt retains human
+review, approvals, source entailment and timestamp/uncertainty requirements, and
+forbids hiding future handoffs in current steps, summaries or current reasons.
+
+#### Public compatibility and schema impact
+
+The canonical `InvestigationSynthesis` adds `conditional_guidance` with a fresh
+empty-list default for legacy inputs. Existing scripted providers, canonical report
+archives and deterministic abstentions continue to validate without supplying it.
+The field is preserved in new JSON output, including `[]` when empty. Thus public
+report/result JSON Schemas change additively; consumers with an older closed schema
+must adopt the new field. This is input/backward compatibility, not byte-identical
+serialization. Every pre-existing property, requiredness, nested definition and
+invariant stays unchanged. Standalone Phase 2B contracts remain exactly unchanged.
+
+V1's wire schema is retained unchanged for explicit compatibility checks; the live
+provider does not negotiate or silently fall back to it. V2 requires the guidance
+field, even when empty, consistent with the SDK's strict
+[Structured Outputs contract](https://developers.openai.com/api/docs/guides/structured-outputs).
+Missing/wrong versions, an omitted/null list, or the removed independently supplied
+Boolean reject. Canonical conversion is followed by the same source-membership and
+limitation checks. No invalid entry is dropped to salvage a report.
+
+#### Evaluation and diagnostics
+
+Both existing Phase 2 projections continue to select current `steps`, status,
+flag and reason only. Conditional future actions never enter current-step citation
+metrics or escalation precision/recall. Full agent outputs retain the future list;
+manual review worksheets now include `conditional_guidance.N` entries for condition
+entailment, applicability, missing-evidence usefulness and snapshot review. The
+standalone worksheet/projection remains unchanged. The synthesis-specific citation
+metric counts a guidance entry as one cited item, not proof of each claim's truth.
+
+Telemetry recognizes canonical, V1 and V2 SDK names as synthesis. The diagnostic
+allowlist derives its fixed field names from the canonical schema and therefore
+includes the new guidance field locations; arbitrary keys/values, inputs, context,
+messages and raw outputs remain excluded. No new error code, repair or retry path.
+Rejected synthesis still preserves classification, KB/operational evidence, planner
+decisions, lookup trace and prior errors; no partial recommendation is fabricated.
+
+Nine additive development cases live in
+`evaluation/investigation_conditional_guidance.jsonl`, using copied text and IDs
+from the existing VPN/software KB. They do not alter frozen Phase 5A data, saved
+Phase 5B pilots, labels or denominators. Reproduce the offline response replay with:
+
+```powershell
+uv run --locked --offline python -m evaluation.investigation_synthesis --cases evaluation/investigation_conditional_guidance.jsonl
+```
+
+Expected mechanics: seven accepted, two rejected (missing KB references and unknown
+KB ID); 27/27 accepted references valid and 22/22 cited items covered; current
+escalation labels match 6/7 accepted candidates. Four accepted cases are authored
+positive controls; **three accepted cases are intentionally semantically wrong**:
+an unsupported future action, a premature current escalation and an unsupported
+condition. These are test expectations, not observed model accuracy or live quality.
+Valid IDs do not prove that a condition is supported, unknown, or established now.
+
+No typed trigger-evidence fields or Phase 5C.2c implementation have been added.
 
 ### 5C.2c: add typed current-escalation trigger evidence (not implemented)
 
@@ -499,3 +586,60 @@ hashes remained unchanged; no temporary test reader roles remained. No credentia
 local environment files or generated reports are included in the milestone. The
 user authorized a normal commit/push after these checks. No paid API calls or
 Phase 5C.2b/5C.2c development occurred during finalization.
+
+## Phase 5C.2b verification (2026-10-28)
+
+The final complete suite passed: **808 tests in 70.20 seconds**, including **76
+PostgreSQL integration tests**. This retains the previous 753 cases with wire/output
+expectations updated for the explicit extension, plus 55 regressions: 50 focused
+guidance tests, two paired-run tests, one additional legacy telemetry case and two
+restricted-database guidance cases. No paid API request was made.
+
+Schema checks distinguish intentional extension from regression: six standalone
+Phase 2B hashes remain exactly equal, six canonical/result comparisons match every
+pre-existing field and definition after removing only the declared guidance
+property/definition, and three V1 schema hashes are unchanged. Three V2 checks
+also verify its shared fields, required list/version and excluded Boolean.
+SDK mocks exercise strict schema serialization, parsing and canonical revalidation.
+Legacy input omission defaults to `[]`; wrong versions, missing V2 fields, forbidden
+reference types, missing/duplicate/unknown KB references, conflicting status/reason,
+mutated SDK models, future trigger fields and invalid outer-result citations reject.
+
+The first targeted invocation passed 181 cases but five temporary-output tests hit
+the Windows filesystem sandbox; the complete suite ran with the required local
+permissions. The first full run caught a missing snapshot disclaimer in a new paired
+mock response. That fixture was corrected to satisfy the existing limitation rule;
+no production check was weakened. Both paired cases and the final full suite pass.
+
+The nine-case additive offline replay has the expected seven accepted/two rejected
+outcomes described above. Its three accepted semantic negative controls remain
+manual failures. Live-model quality, acceptance, cost and escalation improvement
+are unmeasured. No model judge or NLP/keyword routing was introduced.
+
+Before/after application fingerprints match for all **79 operational records and
+36 KB chunks, vectors and metadata**. Temporary reader roles remaining: zero.
+All eleven frozen evaluation JSON/JSONL files, twelve KB documents, twelve original
+Phase 5B artifacts and six pre-existing Phase 5C report/verification files retain
+their pre-change hashes. The baseline consolidator still verifies all seven saved
+pairs without writes, API calls or database calls. No standalone RAG, classifier,
+planner, graph, retrieval, operational tool/data, dependency or lockfile changes.
+
+The additive public field means old strict consumers need the updated schema;
+existing input/report loading and scripted pipelines remain compatible. Citation
+membership and nonblank missing-evidence text cannot establish source entailment,
+real-world trigger truth, freshness or action applicability. Human review remains
+mandatory. No 5C.2c typed trigger evidence, staging, commits or pushes occurred.
+
+Finalization review (2026-10-29) found no blocking issues across all twenty changed
+files. The complete suite passed again: **808 tests in 55.67 seconds**, including
+76 PostgreSQL integration tests and the schema compatibility checks described above.
+The initial verification attempt stopped before tests because Docker Desktop and
+the existing database container were stopped; starting them preserved the existing
+volume, with no recreation or reseeding. Before/after fingerprints again match all
+79 operational records and 36 KB chunks, vectors and metadata; no temporary test
+reader roles remain. Frozen evaluation inputs, original Phase 5B reports and archived
+Phase 5C baseline hashes remain unchanged. The nine-case replay again produced
+seven mechanical acceptances and two rejections; the three accepted semantic negative
+controls remain explicitly incorrect recommendations. No credentials, local environment
+files or generated reports are included. The user authorized normal commit/push
+after these checks. No paid calls or Phase 5C.2c development occurred.

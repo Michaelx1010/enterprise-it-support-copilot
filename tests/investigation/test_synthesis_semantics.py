@@ -36,7 +36,7 @@ def test_smoke_error_and_grounded_contrast_replays(case, planner_client, planner
         return httpx.Response(200, json=planner_response(raw_text=json.dumps(as_synthesis_draft(case.candidate))))
     result = evaluate(case, OpenAISynthesis(planner_client(handler)))
     assert len(calls) == 1 and result['outcome'] == case.expected_replay == 'accepted'
-    assert result['report'] == case.candidate
+    assert result['report'] == case.candidate | {'conditional_guidance': []}
     # Incorrect fixtures intentionally remain accepted: IDs/types cannot prove entailment.
     assert case.manual_verdict in ('acceptable', 'incorrect')
 
@@ -91,7 +91,7 @@ def test_three_lookups_then_synthesis_preserves_observations_and_budgets(
             planner_calls.append(payload)
             return httpx.Response(200, json=planner_response(choice))
         synthesis_payloads.append(payload)
-        assert payload['prompt_version'] == PROMPT_VERSION == 'investigation-synthesis-v3'
+        assert payload['prompt_version'] == PROMPT_VERSION == 'investigation-synthesis-v4'
         assert body['input'][0]['content'] == INSTRUCTIONS
         report = deepcopy(next(c.candidate for c in CASES if c.id == 'escalation-grounded'))
         # Preserve real fixture timestamps in prose rather than copying the compact eval dates.

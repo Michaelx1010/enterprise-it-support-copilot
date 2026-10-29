@@ -116,9 +116,11 @@ def synthesis_report(inv_dependencies):
 @pytest.fixture
 def as_synthesis_draft():
     """Adapt authored canonical fixtures for SDK mocks; never alter frozen files."""
-    def draft(report):
+    def draft(report, *, version=2):
         value = deepcopy(report)
         value.pop('escalation_required')
-        value['schema_version'] = 'investigation-synthesis-draft-v1'
+        value['schema_version'] = f'investigation-synthesis-draft-v{version}'
+        if version == 2:
+            value.setdefault('conditional_guidance', [])
         return value
     return draft

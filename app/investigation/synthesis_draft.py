@@ -1,15 +1,18 @@
-"""Versioned model-facing draft; the public investigation report stays unchanged."""
+"""Versioned model-facing drafts; current escalation derives only from typed steps."""
 
 from copy import deepcopy
 from typing import Literal, Self
 
 from pydantic import model_validator
 
-from app.investigation.schemas import CitedStatement, InvestigationStep, InvestigationSynthesis
+from app.investigation.schemas import (
+    CitedStatement, ConditionalGuidanceEntries, InvestigationStep, InvestigationSynthesis,
+)
 from app.operations.records import Model
 from app.rag.schemas import Text
 
 DRAFT_VERSION = 'investigation-synthesis-draft-v1'
+CURRENT_DRAFT_VERSION = 'investigation-synthesis-draft-v2'
 
 
 class InvestigationSynthesisDraftV1(Model):
@@ -34,3 +37,9 @@ class InvestigationSynthesisDraftV1(Model):
     def valid_canonical_contract(self) -> Self:
         self.to_canonical()
         return self
+
+
+class InvestigationSynthesisDraftV2(InvestigationSynthesisDraftV1):
+    schema_version: Literal['investigation-synthesis-draft-v2']
+    # Required at the SDK boundary; [] explicitly means no future guidance.
+    conditional_guidance: ConditionalGuidanceEntries

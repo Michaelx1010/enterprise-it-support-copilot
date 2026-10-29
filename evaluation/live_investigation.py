@@ -149,7 +149,7 @@ class RecordedPlanner:
 
 
 def project_report(raw: dict | None) -> dict | None:
-    """Only an evaluation projection for the existing Phase 2 mechanical metrics."""
+    """Current actions only for Phase 2 metrics; never project conditional guidance."""
     if raw is None:
         return None
     return {'status': raw['status'], 'summary': raw['summary']['text'],

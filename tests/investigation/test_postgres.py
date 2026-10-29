@@ -227,8 +227,9 @@ def test_mocked_llm_with_real_pgvector_and_all_operational_tools(investigation_d
 
 
 @pytest.mark.parametrize('invalid', [False, True])
+@pytest.mark.parametrize('conditional', [False, True])
 def test_grounded_synthesis_uses_actual_readonly_evidence(investigation_db, reader_pair, inv_request,
-        inv_dependencies, planner_client, planner_response, synthesis_report, as_synthesis_draft, invalid):
+        inv_dependencies, planner_client, planner_response, synthesis_report, as_synthesis_draft, invalid, conditional):
     import httpx
     from app.providers.openai_synthesis import OpenAISynthesis
 
@@ -238,12 +239,19 @@ def test_grounded_synthesis_uses_actual_readonly_evidence(investigation_db, read
         calls.append(payload)
         kb = payload['untrusted_evidence']['kb_procedures'][0]
         observation = payload['untrusted_evidence']['operational_observations'][0]
-        synthesis_report['steps'][0]['references'][0]['chunk_id'] = 'fabricated' if invalid else kb['reference']['chunk_id']
+        synthesis_report['steps'][0]['references'][0]['chunk_id'] = 'fabricated' if invalid and not conditional else kb['reference']['chunk_id']
         synthesis_report['steps'][0]['action'] = kb['result']['chunk']['content'].split('. ')[0] + '.'
         synthesis_report['findings'] = [{'text': 'The recorded account is enabled; this is not verified live state.',
                                          'references': [observation['reference']]}]
         assert observation['observation']['result']['account']['observed_at']
         assert not observation['observation']['result']['live_verified']
+        if conditional:
+            # Contract/source-membership exercise, not a semantic-quality score.
+            synthesis_report['conditional_guidance'] = [{
+                'condition': 'If the documented issue recurs.', 'action': 'If it recurs, follow the documented procedure.',
+                'references': [{'kind': 'kb_chunk', 'chunk_id': 'fabricated' if invalid else kb['reference']['chunk_id']}],
+                'missing_evidence': 'Whether this issue recurs.',
+            }]
         return httpx.Response(200, json=planner_response(raw_text=json.dumps(as_synthesis_draft(synthesis_report))))
     before = snapshot(investigation_db)
     deps = replace(inv_dependencies, db=reader_pair[0], store=reader_pair[1], fixture_lookup=None,
@@ -255,6 +263,8 @@ def test_grounded_synthesis_uses_actual_readonly_evidence(investigation_db, read
     assert result.synthesis_status == ('failed' if invalid else 'completed')
     assert result.phase == '4B.2' and result.synthesis_attempts == len(calls) == 1
     assert result.lookup_attempts == 1 and len(result.operational_evidence) == 1
+    if conditional and not invalid:
+        assert result.recommendation.conditional_guidance and not result.recommendation.escalation_required
     assert result.kb_evidence[0].result.distance == pytest.approx(0)
     assert snapshot(investigation_db) == before
 
@@ -303,7 +313,7 @@ def test_live_pair_reuses_real_retrieval_and_readonly_lookups(investigation_db, 
         schema = raw['text']['format']['name']
         if schema == 'PlannerResponse':
             body = planner_response(next(choices))
-        elif schema == 'InvestigationSynthesisDraftV1':
+        elif schema == 'InvestigationSynthesisDraftV2':
             evidence = payload['untrusted_evidence']
             actual_kb_ids.extend(e['reference']['chunk_id'] for e in evidence['kb_procedures'])
             assert evidence['operational_observations'][0]['observation']['result']['account']['observed_at']

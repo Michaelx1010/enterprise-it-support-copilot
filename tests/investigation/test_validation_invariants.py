@@ -125,7 +125,8 @@ def test_phase2_and_investigation_truth_table_parity(status, types, flag, reason
                 model.model_validate(value)
             assert caught.value.errors()[0]['type'] == expected
         else:
-            assert model.model_validate(value).model_dump(mode='json') == value
+            expected_value = value | {'conditional_guidance': []} if model is InvestigationSynthesis else value
+            assert model.model_validate(value).model_dump(mode='json') == expected_value
 
 
 @pytest.mark.parametrize('code', sorted({code for _, code in VARIANTS}))
@@ -165,6 +166,17 @@ SCHEMAS = [
 
 @pytest.mark.parametrize('model,expected,sdk_expected', SCHEMAS)
 @pytest.mark.parametrize('mode', ['validation', 'serialization', 'sdk'])
-def test_json_schemas_are_identical_to_pre_change_contract(model, expected, sdk_expected, mode):
+def test_json_schemas_preserve_pre_change_fields_with_only_declared_extension(model, expected, sdk_expected, mode):
     schema = to_strict_json_schema(model) if mode == 'sdk' else model.model_json_schema(mode=mode)
+    if model in (InvestigationSynthesis, InvestigationResult):
+        # Check the declared additive field, then compare EVERY old field/definition
+        # to the original hashes. Standalone Phase 2 schemas stay byte-for-byte equal.
+        report = schema if model is InvestigationSynthesis else schema['$defs']['InvestigationSynthesis']
+        extension = report['properties'].pop('conditional_guidance')
+        assert extension['type'] == 'array' and extension['maxItems'] == 4
+        assert extension['items'] == {'$ref': '#/$defs/ConditionalGuidance'}
+        assert ('conditional_guidance' in report['required']) == (mode == 'sdk')
+        if mode == 'sdk': report['required'].remove('conditional_guidance')
+        guidance = schema['$defs'].pop('ConditionalGuidance')
+        assert set(guidance['properties']) == set(guidance['required']) == {'condition', 'action', 'references', 'missing_evidence'}
     assert sha256(json.dumps(schema, sort_keys=True).encode()).hexdigest() == (sdk_expected if mode == 'sdk' else expected)

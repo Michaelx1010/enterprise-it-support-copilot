@@ -10,7 +10,7 @@ from app.investigation.schemas import (
 )
 from app.providers.synthesis import SynthesisError, SynthesisProvider
 
-PROMPT_VERSION = 'investigation-synthesis-v3'
+PROMPT_VERSION = 'investigation-synthesis-v4'
 MAX_PAYLOAD_CHARACTERS = 64000
 
 INSTRUCTIONS = """Draft an advisory IT investigation report using ONLY the supplied evidence.
@@ -79,27 +79,42 @@ establish persistent gateway errors for this user. Do not invent a failed retry.
 If the trigger is unknown or unmet, omit the escalation step and leave escalation_reason
 null unless a DIFFERENT documented handoff is justified now.
 Give any currently applicable documented diagnostic and ask for the missing trigger.
-If future guidance is useful, describe only the KB condition and its unestablished
-status in a cited uncertainty, not an instruction to contact anyone. Never bury a
-conditional handoff in troubleshooting, summary or missing_information to keep the
-current escalation steps empty. No applicable current action means insufficient_evidence, not a future step.
+If future guidance is useful, place it ONLY in conditional_guidance. Never bury a
+conditional handoff in troubleshooting, summary, uncertainties, escalation_reason or
+missing_information. No applicable current action means insufficient_evidence, not a future step.
 Missing details needed to submit an otherwise applicable request can go in missing_information;
 they do not require inventing a repair or promising approval. Escalation steps describe
 recommended human action, never an executed action. Their cited reason must include KB support.
 For example, a first failure with no retry supports a documented retry, not a
-'contact support if it fails' step. A reported failed retry can justify that same
+'contact support if it fails' current step. A reported failed retry can justify that same
 documented handoff now. This distinction applies to all services, not a fixed tool route.
 
+CONDITIONAL FUTURE GUIDANCE
+Use conditional_guidance for relevant documented actions whose triggering condition
+is not established now. Each entry states condition, action, retrieved KB references
+supporting BOTH, and missing_evidence needed to establish the condition. Preserve the
+documented prerequisites and approval boundaries. Use [] when no useful supported
+future guidance exists; do not fill it with speculative or unrelated procedures.
+Missing diagnostics or a recorded incident do not prove that a condition occurred.
+State the action explicitly as advisory IF the condition becomes established, never
+as an instruction to act now, a completed action, or a reason for current escalation.
+Current troubleshooting may coexist with a future handoff. An independently justified
+current escalation may coexist with a different future condition, but do not duplicate
+an already justified current action as a future one. If ONLY future guidance exists,
+return insufficient_evidence with steps=[] and escalation_reason=null. Future guidance
+does not change status, the derived current escalation flag, or any executed-action field.
+
 OUTPUT
-Return schema_version="investigation-synthesis-draft-v1". Do not output escalation_required:
+Return schema_version="investigation-synthesis-draft-v2". Do not output escalation_required:
 the application derives it solely from current escalation-typed steps, never from prose.
 An escalation step requires a non-null documented escalation_reason. With no escalation
 steps, escalation_reason must be null. Do not change step types to evade this rule. A future or unknown
-trigger never belongs in current steps. No conditional-guidance or trigger-basis fields.
+trigger never belongs in current steps. Do not output trigger-basis fields.
 Every summary, finding, uncertainty, step and escalation reason must cite typed references
 from this request. A valid ID alone is not support: each source must support the whole claim.
 Keep the summary descriptive, not an uncited list of actions or a diagnosis. Prefer concise
-findings and 1-4 steps. All action text stays in steps. Missing information should request
+findings and 1-4 current steps. Current action text stays in steps; future actions stay
+only in conditional_guidance. Missing information and missing_evidence should request
 needed symptom context/documentation, never passwords, API keys or MFA codes.
 If no applicable documented action exists, use insufficient_evidence, steps=[],
 and null escalation_reason. Say 'Escalation need is undetermined.' Abstention

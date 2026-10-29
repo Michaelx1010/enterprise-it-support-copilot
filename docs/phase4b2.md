@@ -34,7 +34,7 @@ planning for deterministic tests. No live synthesis was run for this milestone.
 | File | Responsibility |
 | --- | --- |
 | `app/investigation/schemas.py` | Application-owned report, typed references, source membership and structural escalation validation |
-| `app/investigation/synthesis_draft.py` | Since Phase 5C.2a: versioned model-facing draft; derives the canonical escalation flag from typed current steps |
+| `app/investigation/synthesis_draft.py` | Versioned drafts; V2 adds conditional guidance while escalation derives only from current typed steps |
 | `app/investigation/synthesis.py` | Fixed prompt, immutable JSON evidence snapshot, abstention and provider-independent validation |
 | `app/providers/synthesis.py` | One-method provider protocol and fixed error type |
 | `app/providers/openai_synthesis.py` | Independent model setting, strict Structured Outputs, bounded SDK request and sanitized errors |
@@ -63,17 +63,21 @@ adding operational evidence. It does not make a second standalone RAG request.
 - `missing_information`: up to five requests for needed context/documentation.
 - `uncertainties`: up to eight cited statements.
 - `escalation_required` and nullable, cited `escalation_reason`.
+- Since Phase 5C.2b: `conditional_guidance`, separate future condition/action/KB
+  references/missing-evidence entries, defaulting to `[]` for legacy inputs.
 
 Every statement/action requires one to eight distinct typed references. All
-objects are closed; response fields are required, including nullable fields.
-Each text is nonblank and at most 600 characters. Since [Phase 5C.2a](phase5c.md),
-the SDK uses `responses.parse(text_format=InvestigationSynthesisDraftV1)`.
-The draft requires `schema_version="investigation-synthesis-draft-v1"` and omits
+objects are closed; SDK response fields are required, including nullable fields.
+Each text is nonblank and at most 600 characters. Since [Phase 5C.2b](phase5c.md),
+the SDK uses `responses.parse(text_format=InvestigationSynthesisDraftV2)`.
+The draft requires `schema_version="investigation-synthesis-draft-v2"` and omits
 `escalation_required`; the provider derives it only from escalation-typed current
 steps, validates through the unchanged canonical contract, and returns the same
-public report. Scripted reports retain the canonical format. All other draft field
+public report with an additive optional guidance list. Scripted reports retain the canonical format. All other draft field
 constraints are unchanged. Neither unknown versions nor legacy Boolean fields are
-silently accepted. CLI flags and public output fields are unchanged. The
+silently accepted. CLI flags and pre-existing public fields are unchanged. V2
+requires the list explicitly (use `[]` when none); public JSON now includes it even
+for legacy reports. Consumers with older closed schemas need the additive update. The
 nested reference alternatives use `anyOf` and explicit required discriminators,
 following the [Structured Outputs requirements](https://developers.openai.com/api/docs/guides/structured-outputs).
 
@@ -84,13 +88,18 @@ following the [Structured Outputs requirements](https://developers.openai.com/ap
 | `{"kind":"ticket"}` | What the user reports; not independently verified state |
 | `{"kind":"investigation_context"}` | Run limits, missing evidence, errors, clarification and fixed snapshot/review metadata |
 
-Every summary, finding, uncertainty, step and escalation reason is checked for
+Every summary, finding, uncertainty, step, escalation reason and conditional guidance entry is checked for
 reference membership. Any unknown chunk or lookup ID rejects the entire candidate.
 The outer result validates references again. A step must include at least one KB
 reference: ticket text, snapshots and historical resolutions cannot independently
 authorize procedures. Escalation requires an escalation-typed step and a KB-cited
 reason. `supported` requires steps; `insufficient_evidence` forbids steps and has
 `escalation_required=false`, `escalation_reason=null`.
+
+Conditional guidance has one to eight distinct KB-only references per entry and a
+maximum of four entries. It never counts as a current step, sets current escalation,
+or changes a no-current-action abstention into a supported recommendation. Its
+documented condition and action require semantic review even when all IDs validate.
 
 The prompt requires the whole claim to be supported by its cited evidence,
 including summaries, branch conditions and escalation triggers. It forbids
