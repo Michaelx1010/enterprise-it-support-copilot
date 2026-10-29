@@ -205,6 +205,14 @@ Paired projections/escalation metrics continue to use only current actions. Full
 agent outputs and manual worksheets retain future guidance separately. Original
 reports and baseline denominators are unchanged; this extension has no live result yet.
 
+Phase 5C.2c requests `InvestigationSynthesisDraftV3` with explicit current-trigger
+policy/fact references and an explanation (null without current escalation).
+Canonical legacy input defaults this additive field to null. Metering recognizes
+V3; diagnostics expose only fixed field locations/types. Full outputs and worksheets
+include `trigger_basis.0`; paired projections and escalation metrics still score
+current steps only. Valid trigger references do not prove applicability or freshness.
+No paid pilot has been run for V3, and archived reports remain unchanged.
+
 Normally incomplete responses, refusals and absent parsed output have separate
 codes (`incomplete`, `refusal`, `missing_output`). However, parsing runs **before**
 the provider checks completion status; malformed output in an incomplete response

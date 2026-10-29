@@ -16,7 +16,8 @@ from app.providers.openai_synthesis import OpenAISynthesis
 from app.providers.synthesis import SynthesisError
 
 INVARIANT_TYPES = frozenset(('status_steps_mismatch', 'escalation_steps_mismatch',
-                           'escalation_reason_mismatch', 'escalation_reason_missing_kb'))
+                           'escalation_reason_mismatch', 'escalation_reason_missing_kb',
+                           'escalation_trigger_mismatch'))
 KNOWN_TYPES = frozenset(get_args(ErrorType)) | INVARIANT_TYPES
 SCHEMA = InvestigationSynthesis.model_json_schema()
 KNOWN_LOCATIONS = frozenset(SCHEMA['properties']) | frozenset(SCHEMA.get('$defs', {})) | frozenset(

@@ -4,15 +4,16 @@ from copy import deepcopy
 from typing import Literal, Self
 
 from pydantic import model_validator
+from pydantic_core import PydanticCustomError
 
 from app.investigation.schemas import (
-    CitedStatement, ConditionalGuidanceEntries, InvestigationStep, InvestigationSynthesis,
+    CitedStatement, ConditionalGuidanceEntries, InvestigationStep, InvestigationSynthesis, TriggerBasis,
 )
 from app.operations.records import Model
 from app.rag.schemas import Text
 
 DRAFT_VERSION = 'investigation-synthesis-draft-v1'
-CURRENT_DRAFT_VERSION = 'investigation-synthesis-draft-v2'
+CURRENT_DRAFT_VERSION = 'investigation-synthesis-draft-v3'
 
 
 class InvestigationSynthesisDraftV1(Model):
@@ -43,3 +44,15 @@ class InvestigationSynthesisDraftV2(InvestigationSynthesisDraftV1):
     schema_version: Literal['investigation-synthesis-draft-v2']
     # Required at the SDK boundary; [] explicitly means no future guidance.
     conditional_guidance: ConditionalGuidanceEntries
+
+
+class InvestigationSynthesisDraftV3(InvestigationSynthesisDraftV2):
+    schema_version: Literal['investigation-synthesis-draft-v3']
+    trigger_basis: TriggerBasis  # Required key, nullable only without current escalation.
+
+    def to_canonical(self) -> InvestigationSynthesis:
+        report = super().to_canonical()
+        # V1/V2 and canonical archives keep their legacy default; live V3 never does.
+        if report.escalation_required and report.trigger_basis is None:
+            raise PydanticCustomError('escalation_trigger_mismatch', 'Current escalation requires a trigger basis in draft V3.')
+        return report

@@ -218,6 +218,32 @@ ConditionalGuidanceEntries = Annotated[list[ConditionalGuidance], Field(max_leng
     'These entries never set the current escalation flag or make a no-step report supported.')]
 
 
+class EscalationTriggerBasis(Model):
+    policy_references: list[SynthesisKBReference] = Field(min_length=1, max_length=8, description=
+        'Retrieved KB policies authorizing every current handoff and defining its trigger.')
+    factual_references: list[TicketReference | SynthesisObservationReference] = Field(min_length=1, max_length=8, description=
+        'Ticket reports or successful operational observations claimed to establish the current trigger; '
+        'not KB policy, run context, failed lookups or hypothetical future conditions.')
+    explanation: Text = Field(description=
+        'Connect the cited facts to each current handoff policy. Attribute ticket reports; qualify '
+        'recorded observations with source time and unverified live state. IDs do not prove entailment.')
+
+    @property
+    def references(self) -> list[SynthesisReference]:
+        # A validation/metric view, not an additional serialized model field.
+        return [*self.policy_references, *self.factual_references]
+
+    @model_validator(mode='after')
+    def unique_references(self) -> Self:
+        CitedStatement(text=self.explanation, references=self.references)
+        return self
+
+
+TriggerBasis = Annotated[EscalationTriggerBasis | None, Field(description=
+    'Evidence claimed to establish current escalation, never future guidance. '
+    'Null without current escalation.')]
+
+
 class InvestigationSynthesis(Model):
     status: Literal['supported', 'insufficient_evidence']
     summary: CitedStatement = Field(description=
@@ -241,6 +267,7 @@ class InvestigationSynthesis(Model):
         'Null when no current escalation is recommended.')
     # Additive public field: legacy canonical reports/providers omit it safely.
     conditional_guidance: ConditionalGuidanceEntries = Field(default_factory=list)
+    trigger_basis: TriggerBasis = None
 
     @model_validator(mode='after')
     def reuse_recommendation_contract(self) -> Self:
@@ -256,19 +283,29 @@ class InvestigationSynthesis(Model):
         })
         if self.escalation_reason and not any(isinstance(r, KBReference) for r in self.escalation_reason.references):
             raise PydanticCustomError('escalation_reason_missing_kb', 'Escalation requires documented support in its reason.')
+        if self.trigger_basis is not None and not self.escalation_required:
+            raise PydanticCustomError('escalation_trigger_mismatch', 'Trigger basis requires current escalation.')
         return self
 
-    def cited_items(self) -> list[CitedStatement | InvestigationStep | ConditionalGuidance]:
+    def cited_items(self) -> list[CitedStatement | InvestigationStep | ConditionalGuidance | EscalationTriggerBasis]:
         items = [self.summary, *self.findings, *self.steps, *self.uncertainties, *self.conditional_guidance]
+        if self.trigger_basis is not None:
+            items.append(self.trigger_basis)
         return items + ([self.escalation_reason] if self.escalation_reason else [])
 
 
-def validate_synthesis_references(report: InvestigationSynthesis, kb_ids: set[str], lookup_ids: set[str]) -> None:
+def validate_synthesis_references(report: InvestigationSynthesis, kb_ids: set[str], lookup_ids: set[str],
+                                  *, trigger_lookup_ids: set[str] | None = None) -> None:
     for item in report.cited_items():
         for ref in item.references:
             if isinstance(ref, KBReference) and ref.chunk_id not in kb_ids:
                 raise ValueError('invalid_citation')
             if isinstance(ref, ObservationReference) and ref.lookup_id not in lookup_ids:
+                raise ValueError('invalid_citation')
+    # Fail closed for new operational trigger claims unless successful IDs were supplied.
+    if report.trigger_basis is not None:
+        for ref in report.trigger_basis.factual_references:
+            if isinstance(ref, ObservationReference) and ref.lookup_id not in (trigger_lookup_ids or set()):
                 raise ValueError('invalid_citation')
 
 
@@ -316,5 +353,7 @@ class InvestigationResult(Model):
         if (self.synthesis_status == 'completed') != (self.recommendation is not None):
             raise ValueError('Only completed synthesis may contain a recommendation.')
         if self.recommendation:
-            validate_synthesis_references(self.recommendation, set(chunk_ids), set(ids))
+            validate_synthesis_references(self.recommendation, set(chunk_ids), set(ids),
+                trigger_lookup_ids={e.reference.lookup_id for e in self.operational_evidence
+                                    if e.observation.result.status == 'ok'})
         return self

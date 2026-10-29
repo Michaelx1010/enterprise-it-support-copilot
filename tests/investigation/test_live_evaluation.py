@@ -44,7 +44,7 @@ def paired_api(planner_response, as_synthesis_draft):
                     candidate = case.classification.model_dump()
                 elif stage == 'PlannerResponse':
                     candidate = {'decision': next(decisions)}
-                elif stage == 'InvestigationSynthesisDraftV2':
+                elif stage == 'InvestigationSynthesisDraftV3':
                     candidate = as_synthesis_draft(case.agent_response)
                 else:
                     candidate = deepcopy(case.rag_response)
@@ -81,7 +81,7 @@ def test_four_pilots_use_production_providers_and_identical_evidence(case, paire
     assert [e['result'] for e in row['agent_result']['kb_evidence']] == row['shared_kb']
     bodies = {r['text']['format']['name']: json.loads(r['input'][1]['content'])
               for r in requests if 'text' in r and r['text']['format']['name'] != 'TicketClassification'}
-    agent, standalone = bodies['InvestigationSynthesisDraftV2'], bodies['SupportRecommendation']
+    agent, standalone = bodies['InvestigationSynthesisDraftV3'], bodies['SupportRecommendation']
     assert standalone['ticket'] == agent['untrusted_evidence']['ticket'] == case.request.ticket.model_dump()
     for a, b in zip(agent['untrusted_evidence']['kb_procedures'], standalone['evidence'], strict=True):
         assert {key: a['result']['chunk'][key] for key in b} == b
@@ -132,9 +132,34 @@ def test_paired_future_guidance_is_reviewable_but_not_a_current_escalation(paire
         assert len(future) == 1 and future[0]['trigger_established'] is None
 
 
+@pytest.mark.parametrize('invalid', [False, True])
+def test_paired_current_trigger_is_reviewable_without_changing_escalation_projection(paired_api, invalid):
+    from evaluation.investigation_synthesis import load_cases
+
+    case = live.select_cases(['vpn-confirmed'])[0].model_copy(deep=True)
+    basis = deepcopy(load_cases(Path('evaluation/investigation_trigger_basis.jsonl'))[0].candidate['trigger_basis'])
+    case.agent_response['trigger_basis'] = basis
+    if invalid: basis['policy_references'][0]['chunk_id'] = 'not-retrieved'
+    deps, rag, meter, _, _ = paired_api(case)
+    row = live.run_pair(case, dependencies=deps, standalone=rag, meter=meter)
+    assert row['standalone']['outcome'] == 'accepted'
+    assert len(row['agent_result']['operational_evidence']) == 3
+    assert len([c for c in row['api_calls'] if c['stage'] == 'synthesis']) == 1
+    if invalid:
+        assert row['agent']['outcome'] == 'rejected' and row['agent_result']['recommendation'] is None
+        assert row['synthesis_diagnostics'][-1]['stage'] == 'application_validation'
+        assert live.summarize([row])['agent']['escalation']['unscored_rejected_or_failed'] == 1
+    else:
+        assert row['agent']['outcome'] == 'accepted' and row['agent']['recommendation']['escalation_required']
+        assert 'trigger_basis' not in row['agent']['recommendation']
+        assert row['agent_result']['recommendation']['trigger_basis'] == basis
+        item = next(i for i in row['manual_review']['agent_claims'] if i['location'] == 'trigger_basis.0')
+        assert item['value'] == basis and item['trigger_established'] is None and item['entailment'] is None
+
+
 @pytest.mark.parametrize('stage, failure, outcome', [
-    ('InvestigationSynthesisDraftV2', 'http', 'failed'), ('InvestigationSynthesisDraftV2', 'schema', 'rejected'),
-    ('InvestigationSynthesisDraftV2', 'citation', 'rejected'), ('SupportRecommendation', 'http', 'failed'),
+    ('InvestigationSynthesisDraftV3', 'http', 'failed'), ('InvestigationSynthesisDraftV3', 'schema', 'rejected'),
+    ('InvestigationSynthesisDraftV3', 'citation', 'rejected'), ('SupportRecommendation', 'http', 'failed'),
     ('SupportRecommendation', 'schema', 'rejected'), ('SupportRecommendation', 'citation', 'rejected'),
 ])
 def test_failures_preserve_evidence_and_are_not_successful_abstentions(paired_api, stage, failure, outcome):
@@ -145,7 +170,7 @@ def test_failures_preserve_evidence_and_are_not_successful_abstentions(paired_ap
             candidate = json.loads(body['output'][0]['content'][0]['text'])
             if failure == 'schema':
                 candidate['steps'] = []
-            elif stage == 'InvestigationSynthesisDraftV2':
+            elif stage == 'InvestigationSynthesisDraftV3':
                 candidate['steps'][0]['references'][0]['chunk_id'] = 'invented'
             else:
                 candidate['steps'][0]['supporting_chunk_ids'] = ['invented']
@@ -154,7 +179,7 @@ def test_failures_preserve_evidence_and_are_not_successful_abstentions(paired_ap
     case = live.select_cases(['vpn-confirmed'])[0]
     deps, rag, meter, requests, _ = paired_api(case, mutate)
     row = live.run_pair(case, dependencies=deps, standalone=rag, meter=meter)
-    arm = 'agent' if stage == 'InvestigationSynthesisDraftV2' else 'standalone'
+    arm = 'agent' if stage == 'InvestigationSynthesisDraftV3' else 'standalone'
     assert row[arm]['outcome'] == outcome and row[arm]['recommendation'] is None
     assert len(row['agent_result']['operational_evidence']) == 3
     assert len(row['shared_kb']) == 2

@@ -35,6 +35,7 @@ class MeteredTransport(httpx.BaseTransport):
         stage = {'TicketClassification': 'classification', 'PlannerResponse': 'planner',
                  'InvestigationSynthesis': 'synthesis', 'InvestigationSynthesisDraftV1': 'synthesis',
                  'InvestigationSynthesisDraftV2': 'synthesis',
+                 'InvestigationSynthesisDraftV3': 'synthesis',
                  'SupportRecommendation': 'recommendation'}.get(
                      schema, 'connectivity' if request.method == 'GET' else 'embedding')
         row = {'case_id': self.case_id, 'arm': self.arm, 'stage': stage,

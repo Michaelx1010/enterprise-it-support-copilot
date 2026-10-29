@@ -16,7 +16,7 @@ import pytest
 from app.investigation.graph import run_investigation
 from app.investigation.schemas import InvestigationResult, InvestigationSynthesis
 from app.investigation.scripted import ScriptedPlanner
-from app.investigation.synthesis_draft import InvestigationSynthesisDraftV1, InvestigationSynthesisDraftV2
+from app.investigation.synthesis_draft import InvestigationSynthesisDraftV1, InvestigationSynthesisDraftV2, InvestigationSynthesisDraftV3
 from app.providers.openai_synthesis import OpenAISynthesis
 from app.providers.synthesis import SynthesisError
 from evaluation.investigation_e2e import review_items
@@ -47,17 +47,20 @@ def test_authored_cases_through_sdk_and_canonical_replay(case, as_synthesis_draf
     def handler(request):
         body = json.loads(request.content)
         calls.append(body)
-        assert body['text']['format']['name'] == 'InvestigationSynthesisDraftV2'
+        assert body['text']['format']['name'] == 'InvestigationSynthesisDraftV3'
         assert 'review_notes' not in body['input'][1]['content']
         return httpx.Response(200, json=planner_response(raw_text=json.dumps(as_synthesis_draft(case.candidate))))
     result = evaluate(case, OpenAISynthesis(planner_client(handler)))
-    assert result == evaluate(case, ReplayProvider(case.candidate))
+    legacy = evaluate(case, ReplayProvider(case.candidate))
+    assert result['outcome'] == legacy['outcome']
+    if result['report']:
+        assert {k: v for k, v in result['report'].items() if k != 'trigger_basis'} == {k: v for k, v in legacy['report'].items() if k != 'trigger_basis'}
     assert result['outcome'] == case.expected_replay and len(calls) == 1
     assert case.model_dump_json() == before
     if result['outcome'] == 'accepted':
         report = InvestigationSynthesis.model_validate(result['report'])
         assert report.escalation_required == any(s.step_type == 'escalation' for s in report.steps)
-        assert report.model_dump(mode='json') == case.candidate
+        assert report.model_dump(mode='json') == case.candidate | {'trigger_basis': as_synthesis_draft(case.candidate)['trigger_basis']}
         if case.manual_verdict == 'acceptable':
             assert report.escalation_required == case.expected_escalation
             assert report.status == case.expected_status
@@ -101,16 +104,16 @@ def test_legacy_reports_default_empty_without_mutation(synthesis_report, as_synt
     legacy = InvestigationSynthesis.model_validate(before)
     assert old_draft.to_canonical() == legacy
     assert legacy.conditional_guidance == []
-    assert legacy.model_dump(exclude={'conditional_guidance'}) == before == synthesis_report
+    assert legacy.model_dump(exclude={'conditional_guidance', 'trigger_basis'}) == before == synthesis_report
     assert ReplayProvider(before).generate(instructions='', payload='') == legacy
     legacy.conditional_guidance.append(None)
     assert InvestigationSynthesis.model_validate(before).conditional_guidance == []
 
 
-@pytest.mark.parametrize('variant', ['v1', 'missing_guidance', 'null_guidance', 'wrong_version', 'removed_flag', 'trigger_basis'])
-def test_live_v2_has_no_legacy_fallback_or_future_checkpoint_fields(synthesis_report, as_synthesis_draft,
+@pytest.mark.parametrize('variant', ['v1', 'v2', 'missing_guidance', 'null_guidance', 'wrong_version', 'removed_flag', 'trigger_basis'])
+def test_live_v3_has_no_legacy_fallback_or_malformed_trigger_fields(synthesis_report, as_synthesis_draft,
         planner_client, planner_response, variant):
-    candidate = as_synthesis_draft(synthesis_report, version=1 if variant == 'v1' else 2)
+    candidate = as_synthesis_draft(synthesis_report, version=1 if variant == 'v1' else 2 if variant == 'v2' else 3)
     if variant == 'missing_guidance': del candidate['conditional_guidance']
     elif variant == 'null_guidance': candidate['conditional_guidance'] = None
     elif variant == 'wrong_version': candidate['schema_version'] = 'private-invalid-version'
@@ -130,12 +133,12 @@ def test_live_v2_has_no_legacy_fallback_or_future_checkpoint_fields(synthesis_re
 def test_future_text_constraints_are_required_bounded_and_redacted(future_report, as_synthesis_draft, field, value):
     candidate = as_synthesis_draft(future_report)
     candidate['conditional_guidance'][0][field] = value
-    with pytest.raises(ValidationError) as caught: InvestigationSynthesisDraftV2.model_validate(candidate)
+    with pytest.raises(ValidationError) as caught: InvestigationSynthesisDraftV3.model_validate(candidate)
     safe = error_details(caught.value)
     assert safe['errors'][0]['loc'] == ['conditional_guidance', 0, field]
     assert not any(k in safe['errors'][0] for k in ('msg', 'input', 'ctx', 'url'))
     del candidate['conditional_guidance'][0][field]
-    with pytest.raises(ValidationError) as missing: InvestigationSynthesisDraftV2.model_validate(candidate)
+    with pytest.raises(ValidationError) as missing: InvestigationSynthesisDraftV3.model_validate(candidate)
     assert error_details(missing.value)['errors'][0]['type'] == 'missing'
 
 
@@ -150,7 +153,7 @@ def test_only_distinct_kb_references_are_allowed(future_report, as_synthesis_dra
     elif variant == 'observation': entry['references'] = [{'kind': 'operational_observation', 'lookup_id': 'lookup-1'}]
     elif variant == 'extra': entry['references'][0]['PRIVATE_KEY'] = 'PRIVATE_VALUE'
     else: entry['references'] = [{'kind': 'kb_chunk', 'chunk_id': str(i)} for i in range(9)]
-    with pytest.raises(ValidationError) as caught: InvestigationSynthesisDraftV2.model_validate(candidate)
+    with pytest.raises(ValidationError) as caught: InvestigationSynthesisDraftV3.model_validate(candidate)
     assert 'PRIVATE' not in json.dumps(error_details(caught.value))
 
 
@@ -169,7 +172,7 @@ def test_future_guidance_cannot_mask_canonical_contradictions(future_report, as_
         candidate['steps'][0]['step_type'] = 'escalation'
         candidate['escalation_reason'] = deepcopy(candidate['summary'])
     before = deepcopy(candidate)
-    with pytest.raises(ValidationError) as caught: InvestigationSynthesisDraftV2.model_validate(candidate)
+    with pytest.raises(ValidationError) as caught: InvestigationSynthesisDraftV3.model_validate(candidate)
     assert error_details(caught.value)['errors'][0]['type'] == code
     assert candidate == before
 
@@ -177,8 +180,8 @@ def test_future_guidance_cannot_mask_canonical_contradictions(future_report, as_
 def test_future_list_bound_and_mutated_sdk_return_are_revalidated(future_report, as_synthesis_draft):
     candidate = as_synthesis_draft(future_report)
     candidate['conditional_guidance'] *= 5
-    with pytest.raises(ValidationError): InvestigationSynthesisDraftV2.model_validate(candidate)
-    parsed = InvestigationSynthesisDraftV2.model_validate(as_synthesis_draft(future_report))
+    with pytest.raises(ValidationError): InvestigationSynthesisDraftV3.model_validate(candidate)
+    parsed = InvestigationSynthesisDraftV3.model_validate(as_synthesis_draft(future_report))
     parsed.conditional_guidance[0].references = []
     client = Mock()
     client.with_options.return_value = client
@@ -193,7 +196,7 @@ def test_future_list_bound_and_mutated_sdk_return_are_revalidated(future_report,
 def test_future_entries_cannot_contain_current_action_or_trigger_fields(future_report, as_synthesis_draft, field):
     candidate = as_synthesis_draft(future_report)
     candidate['conditional_guidance'][0][field] = 'PRIVATE'
-    with pytest.raises(ValidationError) as caught: InvestigationSynthesisDraftV2.model_validate(candidate)
+    with pytest.raises(ValidationError) as caught: InvestigationSynthesisDraftV3.model_validate(candidate)
     assert error_details(caught.value)['errors'][0]['type'] == 'extra_forbidden'
     assert 'PRIVATE' not in json.dumps(error_details(caught.value))
 

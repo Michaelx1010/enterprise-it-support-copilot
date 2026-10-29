@@ -34,7 +34,7 @@ planning for deterministic tests. No live synthesis was run for this milestone.
 | File | Responsibility |
 | --- | --- |
 | `app/investigation/schemas.py` | Application-owned report, typed references, source membership and structural escalation validation |
-| `app/investigation/synthesis_draft.py` | Versioned drafts; V2 adds conditional guidance while escalation derives only from current typed steps |
+| `app/investigation/synthesis_draft.py` | Versioned drafts; V3 adds typed current-trigger evidence while escalation derives only from current typed steps |
 | `app/investigation/synthesis.py` | Fixed prompt, immutable JSON evidence snapshot, abstention and provider-independent validation |
 | `app/providers/synthesis.py` | One-method provider protocol and fixed error type |
 | `app/providers/openai_synthesis.py` | Independent model setting, strict Structured Outputs, bounded SDK request and sanitized errors |
@@ -65,19 +65,25 @@ adding operational evidence. It does not make a second standalone RAG request.
 - `escalation_required` and nullable, cited `escalation_reason`.
 - Since Phase 5C.2b: `conditional_guidance`, separate future condition/action/KB
   references/missing-evidence entries, defaulting to `[]` for legacy inputs.
+- Since Phase 5C.2c: nullable `trigger_basis`, containing KB policy references,
+  ticket/successful operational references and their connection to current triggers.
 
 Every statement/action requires one to eight distinct typed references. All
 objects are closed; SDK response fields are required, including nullable fields.
-Each text is nonblank and at most 600 characters. Since [Phase 5C.2b](phase5c.md),
-the SDK uses `responses.parse(text_format=InvestigationSynthesisDraftV2)`.
-The draft requires `schema_version="investigation-synthesis-draft-v2"` and omits
+Each text is nonblank and at most 600 characters. Since [Phase 5C.2c](phase5c.md),
+the SDK uses `responses.parse(text_format=InvestigationSynthesisDraftV3)`.
+The draft requires `schema_version="investigation-synthesis-draft-v3"` and omits
 `escalation_required`; the provider derives it only from escalation-typed current
-steps, validates through the unchanged canonical contract, and returns the same
-public report with an additive optional guidance list. Scripted reports retain the canonical format. All other draft field
+steps, validates through the existing canonical invariants, and returns the public
+report with additive guidance/basis fields. Scripted reports retain the canonical format. All other draft field
 constraints are unchanged. Neither unknown versions nor legacy Boolean fields are
-silently accepted. CLI flags and pre-existing public fields are unchanged. V2
+silently accepted. CLI flags and pre-existing public fields are unchanged. V3
 requires the list explicitly (use `[]` when none); public JSON now includes it even
-for legacy reports. Consumers with older closed schemas need the additive update. The
+for legacy reports. V3 also requires a non-null basis for current escalation and
+null otherwise. Canonical legacy input defaults the basis to null; old escalations
+still load, but live V3 never falls back to that contract. Trigger observations must
+come from `ok` lookups, not `not_found`/failed requests. Consumers with older closed
+schemas need both additive updates. The
 nested reference alternatives use `anyOf` and explicit required discriminators,
 following the [Structured Outputs requirements](https://developers.openai.com/api/docs/guides/structured-outputs).
 
@@ -88,7 +94,7 @@ following the [Structured Outputs requirements](https://developers.openai.com/ap
 | `{"kind":"ticket"}` | What the user reports; not independently verified state |
 | `{"kind":"investigation_context"}` | Run limits, missing evidence, errors, clarification and fixed snapshot/review metadata |
 
-Every summary, finding, uncertainty, step, escalation reason and conditional guidance entry is checked for
+Every summary, finding, uncertainty, step, escalation reason, trigger basis and conditional guidance entry is checked for
 reference membership. Any unknown chunk or lookup ID rejects the entire candidate.
 The outer result validates references again. A step must include at least one KB
 reference: ticket text, snapshots and historical resolutions cannot independently

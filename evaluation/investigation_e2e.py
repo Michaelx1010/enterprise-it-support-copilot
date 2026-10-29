@@ -120,7 +120,7 @@ def review_items(report: dict | None, *, agent: bool) -> list[dict]:
     if report is None:
         return []
     # Reviewer splits compound sentences into atomic claims; no NLP truth heuristic.
-    names = ('summary', 'findings', 'uncertainties', 'steps', 'escalation_reason', 'conditional_guidance') if agent else ('summary', 'steps', 'escalation_reason')
+    names = ('summary', 'findings', 'uncertainties', 'steps', 'escalation_reason', 'conditional_guidance', 'trigger_basis') if agent else ('summary', 'steps', 'escalation_reason')
     items = []
     for name in names:
         values = report.get(name)

@@ -1,12 +1,13 @@
 # Phase 5C: baseline consolidation and implementation proposal
 
 Baseline review: 2026-10-26. Phase 5C.1 final review passed: 2026-10-27.
-Phase 5C.2a final review passed on 2026-10-28. Phase 5C.2b is implemented for review:
-draft V2 adds conditional future guidance, separate from current typed steps.
-The canonical report gains an optional list; all pre-existing fields and invariants,
-standalone RAG, graph/planner behavior and frozen inputs are preserved. The synthesis
-wire contract and matching prompt are versioned. 5C.2c and later checkpoints remain
-unimplemented. No new live requests.
+Phase 5C.2a final review passed on 2026-10-28; 5C.2b on 2026-10-29.
+Phase 5C.2c final review passed on 2026-10-30: draft V3 requires typed policy/factual
+trigger evidence for current escalation. Conditional future guidance stays separate.
+The canonical report gains a nullable default for historical input compatibility;
+all pre-existing invariants, standalone RAG, planning and frozen inputs are preserved.
+The synthesis wire contract and matching prompt are versioned. 5C.3 and later
+checkpoints remain unimplemented. No new live requests.
 This is a small development sample, not a held-out benchmark.
 
 ## Preserved baseline and provenance
@@ -301,7 +302,7 @@ it. Existing negative controls deliberately demonstrate this semantic limitation
 No keyword filter, silent correction, conditional-guidance representation or
 typed trigger evidence has been added. Stop for review before 5C.2b.
 
-### 5C.2b: conditional future guidance (implemented for review)
+### 5C.2b: conditional future guidance (implemented, final review passed)
 
 `InvestigationSynthesisDraftV2` extends the V1 draft with a required
 `conditional_guidance` list and literal version `investigation-synthesis-draft-v2`.
@@ -397,29 +398,114 @@ an unsupported future action, a premature current escalation and an unsupported
 condition. These are test expectations, not observed model accuracy or live quality.
 Valid IDs do not prove that a condition is supported, unknown, or established now.
 
-No typed trigger-evidence fields or Phase 5C.2c implementation have been added.
+At the 5C.2b handoff, no typed trigger-evidence fields or Phase 5C.2c implementation
+had been added; the separately authorized extension is described next.
 
-### 5C.2c: add typed current-escalation trigger evidence (not implemented)
+### 5C.2c: typed current-escalation trigger evidence (implemented, final review passed)
 
-For a current handoff, add a typed `trigger_basis` referencing both the KB rule
-and ticket/observation claimed to establish its trigger. An asserted trigger is
-not independently verified merely because the field is populated.
+`InvestigationSynthesisDraftV3` extends V2 with the required literal version
+`investigation-synthesis-draft-v3` and a required nullable `trigger_basis` key.
+The OpenAI provider requests and revalidates V3 only. V1/V2 remain explicit
+historical contracts; there is no negotiation, response repair or version fallback.
+The inherited conversion still derives `escalation_required` exclusively from
+current escalation-typed steps, then invokes canonical validation. V3 additionally
+rejects any current escalation lacking a non-null basis. With no current escalation,
+canonical validation requires null. Guidance-only abstentions remain no-step reports
+with a false flag and null reason/basis. Prose and future guidance never set the flag.
 
-Keep a canonical investigation report retaining existing fields/meaning; version
-the extension and adapt the evaluator's Phase 2 projection to current steps only.
-Preserve legacy scripted reports through explicit defaults/adapter tests. Update
-telemetry stage detection if the SDK schema name changes, so synthesis requests
-cannot be mislabeled as embeddings. Never loosen canonical citation validation.
+One report-level `EscalationTriggerBasis` has three required fields:
 
-Acceptance: valid confirmed handoff, unconfirmed condition, abstention with only
-future guidance, multiple current steps, and partial-investigation cases all
-map consistently; unknown IDs, absent KB action support, missing trigger-source
-types, wrong reason/status and hidden cross-field contradictions reject. Validate
-future references too. No new scope/actions/calls; evidence survives every failure.
-Regression controls with real IDs but false claims must remain labelled semantic
-failures rather than advertised as automatically detected. Exact DTO fields and
-compatibility mapping should be finalized within its separately authorized checkpoint; do not
-introduce a separate orchestration layer or duplicate Phase 2 validation logic.
+| Field | Contract |
+| --- | --- |
+| `policy_references` | One to eight distinct retrieved KB references authorizing current handoffs |
+| `factual_references` | One to eight distinct ticket and/or successful operational-observation references claimed to establish current triggers |
+| `explanation` | Nonblank text, at most 600 characters, connecting the facts to each current handoff policy with attribution and uncertainty |
+
+The groups are disjoint by reference type. Context, KB-as-fact, ticket-as-policy,
+empty groups, duplicates, wrong types and extra fields reject. Existing duplicate
+reference validation is reused. A nonserialized `references` property exposes both
+groups to the existing citation/coverage traversal. Every KB ID must be retrieved;
+every operational ID must resolve to the investigation's evidence. Trigger facts
+additionally require `result.status="ok"`. The graph supplies that subset of its
+validated observations, and the outer result independently computes it from linked
+lookups. Missing successful-ID sets fail closed for new operational trigger claims.
+`not_found` remains citable as missing-information context elsewhere, never as a
+current trigger; blocked, failed and unexecuted requests are not trigger evidence.
+This is a small extension to the existing source validator, not a new graph or tool.
+
+A successful lookup is **not** verification of a trigger, live freshness or causality.
+The typed groups identify what the model claims supports its decision. They do not
+interpret policy or establish that every handoff is entailed. The single explanation
+must connect each current handoff to its policy/facts; semantic coverage for multiple
+handoffs remains manual. No action-text detector, model judge or automatic retry.
+
+Prompt `investigation-synthesis-v5` explains V3, preserves current-step/reason rules,
+and requires ticket attribution and same-claim snapshot qualification in the basis.
+It explicitly excludes future conditions, unrelated observations and failed/not-found
+lookups as trigger proof. Existing freshness/limitation checks and source validation
+remain in force. Required basis fields do not replace step citations, the KB-cited
+escalation reason, or mandatory human review. Model/settings, budgets, planner, scope,
+read-only tools, standalone RAG and CLI flags are unchanged.
+
+#### Canonical compatibility and migration
+
+`InvestigationSynthesis.trigger_basis` defaults to `None` for legacy inputs, including
+legacy escalations. Existing V1/V2 conversion, scripted providers, stored reports and
+deterministic abstentions still load. Non-null supplied bases are always validated;
+canonical reports reject a basis without current escalation. The stricter V3 requirement
+runs at SDK parsing, provider revalidation and conversion; the canonical legacy default
+does not exempt live V3 output. There is no production adapter that invents basis fields.
+
+Public report/result schemas add `trigger_basis` and `EscalationTriggerBasis`; new
+serialization includes `trigger_basis:null` when absent historically. Consumers using
+older closed JSON Schemas must update before consuming new reports. This is additive
+input compatibility, not byte-identical output. Schema checks preserve all old fields,
+both historical draft schemas and standalone Phase 2B schemas. SDK V3 fields remain
+explicitly required, including null, following the
+[Structured Outputs contract](https://developers.openai.com/api/docs/guides/structured-outputs).
+
+#### Evaluation and failure handling
+
+Both Phase 2 projections and escalation metrics continue to score current steps/flag
+only. Full outputs and manual worksheets retain `trigger_basis.0` separately from
+`conditional_guidance.N`; entailment, trigger applicability and snapshot freshness
+remain pending reviewer judgments. Citation metrics include the basis as one cited
+item and count both reference groups, without claiming semantic correctness.
+
+Telemetry recognizes canonical/V1/V2/V3 names as synthesis. The diagnostic
+sanitizer derives the new fixed field locations from the canonical schema; it still
+retains only allowlisted types and bounded locations, never messages/input/context,
+raw outputs or arbitrary exception text. The single new, exact allowlisted code
+`escalation_trigger_mismatch` identifies missing current bases or bases without
+current escalation; similarly named custom codes remain redacted. Existing four
+custom invariant codes stay unchanged. This avoids a new ambiguous root `value_error`.
+SDK rejection and provider revalidation map to `invalid_output`; invalid membership
+or unsuccessful trigger observations map to `invalid_citation`. Missing limitations
+still reject. One attempt only; failed synthesis preserves evidence, planner decisions,
+lookup trace and prior errors, without an invented partial recommendation.
+
+Fourteen additive authored cases live in `evaluation/investigation_trigger_basis.jsonl`.
+They use V3 wire candidates; all previous evaluation inputs stay unchanged. Explicit
+draft replay reuses the production V3 model/conversion, while the default evaluator
+still loads historical canonical candidates. Reproduce without API calls:
+
+```powershell
+uv run --locked --offline python -m evaluation.investigation_synthesis --cases evaluation/investigation_trigger_basis.jsonl --draft-v3
+```
+
+Expected mechanics: **7 accepted, 7 rejected**, including 5 invalid outputs and 2
+invalid citations; 40/40 accepted references valid, 27/27 cited items covered, and
+5/7 current-escalation label matches. One guidance-only case abstains; no accepted
+answerable case incorrectly abstains. Five accepted candidates are authored positive
+controls. **Two accepted candidates are intentionally incorrect recommendations**:
+stale incident data asserted as current causality, and unrelated account flags used
+as gateway-trigger proof. Their valid references and populated basis do not establish
+entailment. These are deterministic development replays, not live-model quality scores.
+
+Existing SDK mock fixtures explicitly author placeholder basis claims when testing
+legacy mechanical cases; frozen files are never edited and no such adapter runs in
+production. New V3 cases author the field directly, including deliberate omissions
+and invalid values. Phase 5C.3 has not begun.
 
 ### 5C.3: distinguish clarification from unavailable procedures
 
@@ -643,3 +729,73 @@ seven mechanical acceptances and two rejections; the three accepted semantic neg
 controls remain explicitly incorrect recommendations. No credentials, local environment
 files or generated reports are included. The user authorized normal commit/push
 after these checks. No paid calls or Phase 5C.2c development occurred.
+
+## Phase 5C.2c verification (2026-10-29)
+
+The final complete suite passed: **891 tests in 52.21 seconds**, including **80
+restricted PostgreSQL integration tests** and **811 offline tests**. All previous
+808 cases remain, with SDK/serialization expectations updated for the explicit
+extension. The 83 added cases include 75 focused trigger regressions, four restricted
+database cases, two paired-evaluation cases, one V2 live-fallback rejection and one
+V3 telemetry identity. The first complete pass had 886 successes; review then added
+the exact trigger-invariant diagnostic code and five redaction/SDK tests before the
+final full pass. No production acceptance rule was weakened.
+
+Schema checks preserve the exact V1/V2 hashes in validation, serialization and SDK
+forms, and exact standalone Phase 2B hashes. Canonical/report compatibility checks
+remove only the declared new property/definition before comparing with the 5C.2b
+hashes; older parity checks likewise preserve every pre-existing field. Current V3
+checks require its literal version, nullable basis key and guidance list, omit the
+independently generated Boolean, and reuse the canonical field constraints. Legacy
+canonical escalation reports still load without basis; V3 cannot use that exemption.
+
+The additive fourteen-case replay produced **7 accepted and 7 rejected** as specified
+above. Both accepted negative controls remain manual failures. The seven saved pilot
+pairs still pass baseline verification without writes or API/database calls. All
+twelve pre-existing evaluation JSON/JSONL files, twelve KB documents, twelve original
+Phase 5B reports and seven pre-existing Phase 5C archive/verification files retain
+their preimplementation hashes. Only the nine approved application/evaluation source
+modules differ in that protected-file manifest.
+
+Read-only fingerprints taken before implementation and after the complete tests match
+all **79 operational records and 36 KB chunks, vectors and metadata**. Full-suite
+before/after fingerprints also match; temporary test reader roles remaining: **0**.
+Integration fixtures initialize only the separate disposable test database. Application
+data was never initialized, reseeded or modified. Secret/path scans and whitespace
+checks pass; environment files and generated verification artifacts remain ignored.
+
+Changed files (23):
+
+- Application: `app/investigation/schemas.py`, `synthesis_draft.py`, `synthesis.py`,
+  `graph.py`, and `app/providers/openai_synthesis.py`.
+- Evaluation: `evaluation/investigation_synthesis.py`, `investigation_e2e.py`,
+  `live_telemetry.py`, `synthesis_diagnostics.py`, and the new
+  `investigation_trigger_basis.jsonl`.
+- Tests under `tests/investigation/`: new `test_trigger_basis.py`, `conftest.py`,
+  `test_conditional_guidance.py`, `test_live_evaluation.py`,
+  `test_live_investigation_cli.py`, `test_postgres.py`, `test_synthesis_diagnostics.py`,
+  `test_synthesis_draft.py`, `test_synthesis_semantics.py`, `test_validation_invariants.py`.
+- Documentation: `docs/phase5c.md`, `docs/phase4b2.md`, `docs/phase5b.md`.
+
+Remaining risks: basis references can be real while the explanation is unsupported,
+stale or unrelated; a populated basis is not an authorization or entailment proof.
+Multiple-handoff applicability remains manual. Strict downstream JSON consumers
+must update their schema. Live V3 acceptance and semantic quality are unmeasured.
+No paid calls, staging, commits, pushes or Phase 5C.3 implementation occurred.
+
+Finalization review (2026-10-30) reconciled the inventory exactly: **21 modified
+tracked files plus two new development files, 23 total**. No blocking findings.
+The complete suite passed again: **891 tests in 53.32 seconds**, including all
+80 PostgreSQL integration tests and schema compatibility checks. The initial
+verification attempt stopped before tests because Docker Desktop and the existing
+database container were stopped; both were restarted without recreation or reseeding.
+Application fingerprints match the preimplementation snapshot and the suite's
+before/after snapshots; all 79 operational records and 36 KB chunks/vectors are
+unchanged, with zero temporary reader roles. Frozen fixtures, original reports
+and archived baseline hashes match. The fourteen-case V3 replay again produced
+seven mechanical acceptances and seven rejections; its two accepted semantic
+negative controls remain explicitly incorrect. The new evaluation fixture and
+test file are included in the approved commit inventory. No credentials, local
+environment files, generated reports or unrelated changes are included. The user
+authorized a normal commit/push after verification. No paid calls or Phase 5C.3
+development occurred during finalization.

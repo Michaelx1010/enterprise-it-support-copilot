@@ -10,7 +10,7 @@ from app.investigation.schemas import (
 )
 from app.providers.synthesis import SynthesisError, SynthesisProvider
 
-PROMPT_VERSION = 'investigation-synthesis-v4'
+PROMPT_VERSION = 'investigation-synthesis-v5'
 MAX_PAYLOAD_CHARACTERS = 64000
 
 INSTRUCTIONS = """Draft an advisory IT investigation report using ONLY the supplied evidence.
@@ -89,6 +89,21 @@ For example, a first failure with no retry supports a documented retry, not a
 'contact support if it fails' current step. A reported failed retry can justify that same
 documented handoff now. This distinction applies to all services, not a fixed tool route.
 
+CURRENT TRIGGER BASIS
+For current escalation, supply trigger_basis with policy_references (retrieved KB rules),
+factual_references (ticket reports and/or operational observations with result.status="ok"),
+and an explanation connecting those facts to the documented trigger for EACH current
+handoff. These are claimed supporting facts, not an independent verification of a trigger.
+Ticket evidence remains user-reported. Operational claims must retain source timestamps,
+snapshot qualifications and uncertainty; a successful lookup does not verify live state.
+An unrelated account/device observation or an old incident does not establish a current
+gateway failure, causal relationship or completed retry. KB policy describes what must
+occur; it is not factual evidence that it occurred. Failed/not_found lookups and run
+context cannot establish a current trigger. Do not use conditional_guidance as a basis.
+With no current escalation, return trigger_basis=null. Never invent or promote a future
+condition to satisfy this field. Keep escalation_reason and existing step citations;
+trigger_basis supplements them and cannot replace their required documented support.
+
 CONDITIONAL FUTURE GUIDANCE
 Use conditional_guidance for relevant documented actions whose triggering condition
 is not established now. Each entry states condition, action, retrieved KB references
@@ -105,11 +120,11 @@ return insufficient_evidence with steps=[] and escalation_reason=null. Future gu
 does not change status, the derived current escalation flag, or any executed-action field.
 
 OUTPUT
-Return schema_version="investigation-synthesis-draft-v2". Do not output escalation_required:
+Return schema_version="investigation-synthesis-draft-v3". Do not output escalation_required:
 the application derives it solely from current escalation-typed steps, never from prose.
 An escalation step requires a non-null documented escalation_reason. With no escalation
 steps, escalation_reason must be null. Do not change step types to evade this rule. A future or unknown
-trigger never belongs in current steps. Do not output trigger-basis fields.
+trigger never belongs in current steps. Always include trigger_basis, using null without current escalation.
 Every summary, finding, uncertainty, step and escalation reason must cite typed references
 from this request. A valid ID alone is not support: each source must support the whole claim.
 Keep the summary descriptive, not an uncited list of actions or a diagnosis. Prefer concise
@@ -154,7 +169,7 @@ def abstention(reason: str, missing: list[str]) -> InvestigationSynthesis:
 
 
 def generate_synthesis(payload: str, *, kb_ids: set[str], lookup_ids: set[str],
-                       provider: SynthesisProvider) -> InvestigationSynthesis:
+                       provider: SynthesisProvider, trigger_lookup_ids: set[str] | None = None) -> InvestigationSynthesis:
     if len(payload) > MAX_PAYLOAD_CHARACTERS:
         raise SynthesisError('context_limit')
     candidate = provider.generate(instructions=INSTRUCTIONS, payload=payload)
@@ -165,7 +180,7 @@ def generate_synthesis(payload: str, *, kb_ids: set[str], lookup_ids: set[str],
     except ValidationError:
         raise SynthesisError('invalid_output') from None
     try:
-        validate_synthesis_references(candidate, kb_ids, lookup_ids)
+        validate_synthesis_references(candidate, kb_ids, lookup_ids, trigger_lookup_ids=trigger_lookup_ids)
     except ValueError:
         raise SynthesisError('invalid_citation') from None
     context = json.loads(payload)['investigation_context']

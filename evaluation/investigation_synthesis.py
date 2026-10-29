@@ -7,6 +7,7 @@ from typing import Literal
 from pydantic import ValidationError
 
 from app.investigation.schemas import InvestigationSynthesis
+from app.investigation.synthesis_draft import InvestigationSynthesisDraftV3
 from app.investigation.synthesis import generate_synthesis
 from app.operations.records import Model
 from app.providers.synthesis import SynthesisError, SynthesisProvider
@@ -34,13 +35,16 @@ def load_cases(path: Path = Path('evaluation/investigation_synthesis.jsonl')) ->
 
 
 class ReplayProvider:
-    def __init__(self, candidate: dict | None):
+    def __init__(self, candidate: dict | None, *, draft_v3: bool = False):
         self.candidate = candidate
+        self.draft_v3 = draft_v3
 
     def generate(self, *, instructions: str, payload: str) -> InvestigationSynthesis:
         if self.candidate is None:
             raise SynthesisError('provider_failure')
         try:
+            if self.draft_v3:
+                return InvestigationSynthesisDraftV3.model_validate(self.candidate).to_canonical()
             return InvestigationSynthesis.model_validate(self.candidate)
         except ValidationError:
             raise SynthesisError('invalid_output') from None
@@ -53,6 +57,9 @@ def evaluate(case: SynthesisCase, provider: SynthesisProvider) -> dict:
                                'operational_observations': case.observations}})
     try:
         report = generate_synthesis(payload, kb_ids=set(case.kb), lookup_ids=set(case.observations),
+                                    # Compact authored observations represent successful snapshots.
+                                    # Failed/not_found tool outcomes are tested through the real graph.
+                                    trigger_lookup_ids=set(case.observations),
                                     provider=provider)
     except SynthesisError as exc:
         return {'id': case.id, 'outcome': exc.code, 'report': None}
@@ -90,7 +97,9 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Offline synthesis response replay; never calls a model.')
     parser.add_argument('--cases', type=Path, default=Path('evaluation/investigation_synthesis.jsonl'))
-    cases = load_cases(parser.parse_args().cases)
-    results = [evaluate(case, ReplayProvider(case.candidate)) for case in cases]
+    parser.add_argument('--draft-v3', action='store_true', help='Explicit V3 draft replay; no legacy fallback or model call.')
+    args = parser.parse_args()
+    cases = load_cases(args.cases)
+    results = [evaluate(case, ReplayProvider(case.candidate, draft_v3=args.draft_v3)) for case in cases]
     print(json.dumps({'mode': 'offline_response_replay', 'metrics': summarize(cases, results),
                       'outcomes': [{'id': r['id'], 'outcome': r['outcome']} for r in results]}, indent=2))

@@ -6,7 +6,7 @@ from openai import APIError, OpenAI
 from pydantic import ValidationError
 
 from app.investigation.schemas import InvestigationSynthesis
-from app.investigation.synthesis_draft import InvestigationSynthesisDraftV2
+from app.investigation.synthesis_draft import InvestigationSynthesisDraftV3
 from app.providers.synthesis import SynthesisError
 
 DEFAULT_MODEL = 'gpt-4.1-mini-2025-04-14'
@@ -31,7 +31,7 @@ class OpenAISynthesis:
             response = self.client.responses.parse(
                 model=self.model,
                 input=[{'role': 'system', 'content': instructions}, {'role': 'user', 'content': payload}],
-                text_format=InvestigationSynthesisDraftV2, max_output_tokens=MAX_OUTPUT_TOKENS,
+                text_format=InvestigationSynthesisDraftV3, max_output_tokens=MAX_OUTPUT_TOKENS,
                 temperature=0, store=False,
             )
         except APIError:
@@ -50,9 +50,9 @@ class OpenAISynthesis:
         if len(messages) != 1 or len(messages[0].content) != 1 or messages[0].content[0].type != 'output_text':
             raise SynthesisError('invalid_output')
         try:
-            if not isinstance(response.output_parsed, InvestigationSynthesisDraftV2):
+            if not isinstance(response.output_parsed, InvestigationSynthesisDraftV3):
                 raise ValueError('Unexpected parsed type.')
-            draft = InvestigationSynthesisDraftV2.model_validate(response.output_parsed.model_dump())
+            draft = InvestigationSynthesisDraftV3.model_validate(response.output_parsed.model_dump())
             return draft.to_canonical()
         except (ValidationError, ValueError, TypeError):
             raise SynthesisError('invalid_output') from None

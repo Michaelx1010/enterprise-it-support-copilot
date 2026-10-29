@@ -12,7 +12,7 @@ from pydantic_core import PydanticCustomError
 
 from app.investigation.graph import run_investigation
 from app.investigation.schemas import InvestigationSynthesis
-from app.investigation.synthesis_draft import InvestigationSynthesisDraftV2
+from app.investigation.synthesis_draft import InvestigationSynthesisDraftV3
 from app.providers.openai_synthesis import OpenAISynthesis
 from app.providers.synthesis import SynthesisError
 from evaluation.investigation_e2e import RagReplay
@@ -92,7 +92,7 @@ class ParsedClient:
     ('sdk_type', 'sdk_parse', 'type_error'),
 ])
 def test_sdk_return_is_distinct_from_later_rejection(synthesis_report, as_synthesis_draft, failure, stage, exception):
-    parsed = InvestigationSynthesisDraftV2.model_validate(as_synthesis_draft(synthesis_report))
+    parsed = InvestigationSynthesisDraftV3.model_validate(as_synthesis_draft(synthesis_report))
     if failure == 'contract': parsed.status = 'insufficient_evidence'
     client = ParsedClient('DO_NOT_LOG' if failure == 'wrong_type' else parsed,
         unexpected_item=failure == 'shape',

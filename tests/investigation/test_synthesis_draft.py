@@ -15,7 +15,7 @@ import pytest
 from app.investigation.graph import run_investigation
 from app.investigation.schemas import InvestigationSynthesis
 from app.investigation.scripted import ScriptedPlanner
-from app.investigation.synthesis_draft import CURRENT_DRAFT_VERSION, InvestigationSynthesisDraftV2
+from app.investigation.synthesis_draft import CURRENT_DRAFT_VERSION, InvestigationSynthesisDraftV3
 from app.providers.openai_synthesis import OpenAISynthesis
 from app.providers.synthesis import SynthesisError
 from evaluation.investigation_synthesis import ReplayProvider, evaluate, load_cases
@@ -28,13 +28,14 @@ from evaluation.synthesis_diagnostics import ObservedSynthesis, error_details
 def test_wire_difference_is_only_version_and_removed_boolean(mode):
     def schema(model):
         return to_strict_json_schema(model) if mode == 'sdk' else model.model_json_schema(mode=mode)
-    canonical, draft = schema(InvestigationSynthesis), schema(InvestigationSynthesisDraftV2)
+    canonical, draft = schema(InvestigationSynthesis), schema(InvestigationSynthesisDraftV3)
     shared = set(canonical['properties']) - {'escalation_required'}
     assert set(draft['properties']) == shared | {'schema_version'}
     assert set(draft['required']) == shared | {'schema_version'}
     assert draft['properties']['schema_version']['const'] == CURRENT_DRAFT_VERSION
     assert draft['additionalProperties'] is False
     assert draft['$defs'] == canonical['$defs']
+    canonical['properties']['trigger_basis'].pop('default', None)
     assert {key: draft['properties'][key] for key in shared} == {key: canonical['properties'][key] for key in shared}
 
 
@@ -54,11 +55,11 @@ def test_sdk_draft_preserves_canonical_and_scripted_projection(case, as_synthesi
         return httpx.Response(200, json=planner_response(raw_text=json.dumps(as_synthesis_draft(case.candidate))))
     live = evaluate(case, OpenAISynthesis(planner_client(handler)))
     scripted = evaluate(case, ReplayProvider(case.candidate))
-    assert live == scripted
-    assert live['report'] == before | {'conditional_guidance': []}
+    assert {k: v for k, v in live['report'].items() if k != 'trigger_basis'} == {k: v for k, v in scripted['report'].items() if k != 'trigger_basis'}
+    assert live['report'] == before | {'conditional_guidance': [], 'trigger_basis': as_synthesis_draft(before)['trigger_basis']}
     assert before == case.candidate
     assert project_report(live['report']) == project_report(before)
-    assert len(calls) == 1 and calls[0]['text']['format']['name'] == 'InvestigationSynthesisDraftV2'
+    assert len(calls) == 1 and calls[0]['text']['format']['name'] == 'InvestigationSynthesisDraftV3'
     if case.id == 'escalation-unsupported':
         # A falsely typed current handoff still needs semantic review. No keyword rule.
         assert live['report']['escalation_required'] and case.manual_verdict == 'incorrect'
@@ -78,7 +79,7 @@ def test_sdk_draft_preserves_canonical_and_scripted_projection(case, as_synthesi
     ('reason_without_kb', 'escalation_reason_missing_kb', []),
     ('step_without_kb', 'value_error', ['steps', 0]),
     ('conditional_guidance', 'list_type', ['conditional_guidance']),
-    ('trigger_basis', 'extra_forbidden', ['<redacted>']),
+    ('trigger_basis', 'model_type', ['trigger_basis']),
 ])
 def test_inconsistent_drafts_reject_without_repair_or_diagnostic_leak(synthesis_report,
         as_synthesis_draft, planner_client, planner_response, variant, code, location):
@@ -98,7 +99,7 @@ def test_inconsistent_drafts_reject_without_repair_or_diagnostic_leak(synthesis_
     else: candidate[variant] = 'PRIVATE future checkpoint'
     original = deepcopy(candidate)
     with pytest.raises(ValidationError) as caught:
-        InvestigationSynthesisDraftV2.model_validate(candidate)
+        InvestigationSynthesisDraftV3.model_validate(candidate)
     safe = error_details(caught.value)
     assert safe['errors'][0]['type'] == code and safe['errors'][0]['loc'] == location
     calls = []
@@ -123,14 +124,17 @@ def test_flag_uses_only_typed_steps_never_action_or_uncertainty_text(synthesis_r
     candidate['uncertainties'][0]['text'] = 'A future escalation condition has not been established.'
     candidate['escalation_reason'] = ({'text': 'An authored current reason.',
         'references': deepcopy(candidate['steps'][0]['references'])} if step_type == 'escalation' else None)
-    canonical = InvestigationSynthesisDraftV2.model_validate(candidate).to_canonical()
+    if step_type == 'escalation':
+        candidate['trigger_basis'] = {'policy_references': deepcopy(candidate['steps'][0]['references']),
+            'factual_references': [{'kind': 'ticket'}], 'explanation': 'Authored evidence claim.'}
+    canonical = InvestigationSynthesisDraftV3.model_validate(candidate).to_canonical()
     assert canonical.escalation_required is (step_type == 'escalation')
     assert canonical.model_dump(exclude={'escalation_required'}) == {k: v for k, v in candidate.items() if k != 'schema_version'}
 
 
 @pytest.mark.parametrize('mode', ['legacy_type', 'mutated_version', 'mutated_reason'])
 def test_provider_revalidates_sdk_objects_and_rejects_legacy_wire_type(synthesis_report, as_synthesis_draft, mode):
-    parsed = InvestigationSynthesisDraftV2.model_validate(as_synthesis_draft(synthesis_report))
+    parsed = InvestigationSynthesisDraftV3.model_validate(as_synthesis_draft(synthesis_report))
     if mode == 'legacy_type': parsed = InvestigationSynthesis.model_validate(synthesis_report)
     elif mode == 'mutated_version': parsed.schema_version = 'invalid'
     else: parsed.escalation_reason = parsed.summary
@@ -142,7 +146,7 @@ def test_provider_revalidates_sdk_objects_and_rejects_legacy_wire_type(synthesis
     with pytest.raises(SynthesisError, match='invalid_output'):
         OpenAISynthesis(client).generate(instructions='rules', payload='evidence')
     assert client.responses.parse.call_count == 1
-    assert client.responses.parse.call_args.kwargs['text_format'] is InvestigationSynthesisDraftV2
+    assert client.responses.parse.call_args.kwargs['text_format'] is InvestigationSynthesisDraftV3
 
 
 @pytest.mark.parametrize('failure,code', [
@@ -193,7 +197,7 @@ def test_draft_graph_keeps_partial_evidence_errors_and_metering(inv_request, inv
     assert 'PRIVATE' not in result.model_dump_json() + json.dumps(diagnostics) + json.dumps(meter.calls)
 
 
-@pytest.mark.parametrize('schema_name', ['InvestigationSynthesis', 'InvestigationSynthesisDraftV1', 'InvestigationSynthesisDraftV2'])
+@pytest.mark.parametrize('schema_name', ['InvestigationSynthesis', 'InvestigationSynthesisDraftV1', 'InvestigationSynthesisDraftV2', 'InvestigationSynthesisDraftV3'])
 def test_telemetry_identifies_both_synthesis_contract_generations(schema_name):
     meter = MeteredTransport(httpx.MockTransport(lambda request: httpx.Response(200,
         json={'usage': {'total_tokens': 7}, 'model': 'fixture-model'})))

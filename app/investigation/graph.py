@@ -244,6 +244,8 @@ def synthesize_node(state: InvestigationState, runtime: Runtime[Dependencies]):
         report = generate_synthesis(payload,
             kb_ids={e.reference.chunk_id for e in state['kb_evidence']},
             lookup_ids={e.reference.lookup_id for e in state['operational_evidence']},
+            trigger_lookup_ids={e.reference.lookup_id for e in state['operational_evidence']
+                                if e.observation.result.status == 'ok'},
             provider=runtime.context.synthesis)
     except Exception as exc:
         # Fixed allowlisted codes only, even for substitute providers.

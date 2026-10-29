@@ -282,6 +282,49 @@ def test_live_evaluation_readonly_audit_detects_incomplete_corpus(investigation_
     assert snapshot(investigation_db) == before
 
 
+@pytest.mark.parametrize('variant', ['ok', 'unknown_observation', 'unknown_policy', 'not_found'])
+def test_v3_trigger_uses_only_successful_restricted_observations(investigation_db, reader_pair, inv_request,
+        inv_dependencies, planner_client, planner_response, synthesis_report, as_synthesis_draft, variant):
+    import httpx
+    from app.providers.openai_synthesis import OpenAISynthesis
+
+    employee = 'EMP-999' if variant == 'not_found' else 'EMP-001'
+    request = inv_request.model_copy(update={'employee_id': employee})
+    calls = []
+    def handler(api_request):
+        payload = json.loads(json.loads(api_request.content)['input'][1]['content'])
+        calls.append(payload)
+        evidence = payload['untrusted_evidence']
+        kb = evidence['kb_procedures'][0]['reference']
+        observation = evidence['operational_observations'][0]
+        assert observation['observation']['result']['status'] == ('not_found' if variant == 'not_found' else 'ok')
+        assert observation['observation']['result']['live_verified'] is False
+        synthesis_report['steps'][0].update(step_type='escalation', references=[kb])
+        synthesis_report['escalation_required'] = True
+        synthesis_report['escalation_reason'] = {'text': 'Authored contract test only; human review must establish applicability.', 'references': [kb]}
+        synthesis_report['trigger_basis'] = {
+            'policy_references': [kb if variant != 'unknown_policy' else {'kind': 'kb_chunk', 'chunk_id': 'invented'}],
+            'factual_references': [observation['reference'] if variant != 'unknown_observation' else {'kind': 'operational_observation', 'lookup_id': 'invented'}],
+            'explanation': 'Authored reference-membership claim, not a semantic-quality result. The operational snapshot is not verified live state.',
+        }
+        return httpx.Response(200, json=planner_response(raw_text=json.dumps(as_synthesis_draft(synthesis_report))))
+    before = snapshot(investigation_db)
+    deps = replace(inv_dependencies, db=reader_pair[0], store=reader_pair[1], fixture_lookup=None,
+        embedder=ScriptedEmbedder(build_query(request.ticket), SPEC, VECTOR),
+        planner=ScriptedPlanner(decisions(('get_employee_account_status', {'employee_id': employee}))),
+        synthesis=OpenAISynthesis(planner_client(handler)))
+    result = run_investigation(request, dependencies=deps)
+    assert result.synthesis_attempts == len(calls) == 1
+    assert result.lookup_attempts == 1 and len(result.operational_evidence) == 1
+    assert result.kb_evidence and result.lookup_trace[0].executed
+    if variant == 'ok':
+        assert result.synthesis_status == 'completed' and result.recommendation.trigger_basis
+    else:
+        assert result.status == 'partial' and result.recommendation is None
+        assert result.errors[-1].code == 'synthesis_invalid_citation'
+    assert snapshot(investigation_db) == before
+
+
 @pytest.mark.parametrize('admin_arm', ['ops', 'kb'])
 def test_live_evaluation_audit_rejects_admin_fallback(investigation_db, reader_pair, admin_arm):
     from app.operations.db import OperationalDataError
@@ -313,7 +356,7 @@ def test_live_pair_reuses_real_retrieval_and_readonly_lookups(investigation_db, 
         schema = raw['text']['format']['name']
         if schema == 'PlannerResponse':
             body = planner_response(next(choices))
-        elif schema == 'InvestigationSynthesisDraftV2':
+        elif schema == 'InvestigationSynthesisDraftV3':
             evidence = payload['untrusted_evidence']
             actual_kb_ids.extend(e['reference']['chunk_id'] for e in evidence['kb_procedures'])
             assert evidence['operational_observations'][0]['observation']['result']['account']['observed_at']

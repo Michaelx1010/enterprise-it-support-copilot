@@ -125,7 +125,7 @@ def test_phase2_and_investigation_truth_table_parity(status, types, flag, reason
                 model.model_validate(value)
             assert caught.value.errors()[0]['type'] == expected
         else:
-            expected_value = value | {'conditional_guidance': []} if model is InvestigationSynthesis else value
+            expected_value = value | {'conditional_guidance': [], 'trigger_basis': None} if model is InvestigationSynthesis else value
             assert model.model_validate(value).model_dump(mode='json') == expected_value
 
 
@@ -142,7 +142,7 @@ def test_only_exact_application_codes_are_allowed_never_their_messages(code):
 
 
 def test_allowlist_is_exact_and_other_validator_errors_stay_generic(synthesis_report):
-    assert INVARIANT_TYPES == {code for _, code in VARIANTS}
+    assert INVARIANT_TYPES == {code for _, code in VARIANTS} | {'escalation_trigger_mismatch'}
     candidate = deepcopy(synthesis_report)
     candidate['summary']['references'] *= 2
     with pytest.raises(ValidationError) as caught:
@@ -172,6 +172,13 @@ def test_json_schemas_preserve_pre_change_fields_with_only_declared_extension(mo
         # Check the declared additive field, then compare EVERY old field/definition
         # to the original hashes. Standalone Phase 2 schemas stay byte-for-byte equal.
         report = schema if model is InvestigationSynthesis else schema['$defs']['InvestigationSynthesis']
+        trigger = report['properties'].pop('trigger_basis')
+        assert trigger['anyOf'] == [{'$ref': '#/$defs/EscalationTriggerBasis'}, {'type': 'null'}]
+        assert ('trigger_basis' in report['required']) == (mode == 'sdk')
+        if mode == 'sdk': report['required'].remove('trigger_basis')
+        else: assert trigger['default'] is None
+        basis = schema['$defs'].pop('EscalationTriggerBasis')
+        assert set(basis['properties']) == set(basis['required']) == {'policy_references', 'factual_references', 'explanation'}
         extension = report['properties'].pop('conditional_guidance')
         assert extension['type'] == 'array' and extension['maxItems'] == 4
         assert extension['items'] == {'$ref': '#/$defs/ConditionalGuidance'}
