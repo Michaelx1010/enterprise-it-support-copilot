@@ -11,6 +11,11 @@ See [the live-review correction](#live-review-correction-prompt-v2) for the late
 semantic reliability adjustment and its separate offline evaluation.
 The subsequent [paired investigation evaluation](investigation_evaluation.md)
 freezes current behavior and proposes contract changes without implementing them.
+The current [Phase 5C.4 prompt revision](phase5c.md#phase-5c4-synthesis-grounding-and-usefulness)
+uses `investigation-synthesis-v6` with the unchanged V3 draft. It adds compact
+applicability/attribution examples and guidance on completed work and complete
+summaries. Semantic correctness still requires manual review; no model judge or
+runtime prose repair has been added.
 
 ## Architecture
 

@@ -33,7 +33,7 @@ from app.providers.recommendation import RecommendationError
 from app.rag.recommendation import build_query, generate_recommendation
 from evaluation.investigation_e2e import (
     MANIFEST, Case, digest, load_cases, planner_metrics, review_items, scoring_row,
-    summarize, text_digest,
+    summarize, text_digest, REVIEW_WORKSHEET_VERSION, REVIEW_CRITERIA,
 )
 from evaluation.live_telemetry import API_BASE_URL, MeteredTransport, openai_transport, usage_totals
 from evaluation.synthesis_diagnostics import ObservedSynthesis
@@ -208,7 +208,8 @@ def run_pair(case: Case, *, dependencies: Dependencies, standalone, meter: Meter
                                 'standalone_generation_only': time.monotonic() - rag_started,
                                 'pair': time.monotonic() - started},
             'api_calls': calls, 'usage': usage_totals(calls),
-            'manual_review': {'status': 'pending', 'agent_claims': review_items(raw, agent=True),
+            'manual_review': {'status': 'pending', 'worksheet_version': REVIEW_WORKSHEET_VERSION,
+                              'criteria': dict(REVIEW_CRITERIA), 'agent_claims': review_items(raw, agent=True),
                               'standalone_claims': review_items(rag, agent=False),
                               'retrieved_evidence_sufficient': None, 'missing_information_sufficient': None,
                               'hidden_conditional_handoff': None, 'current_escalation_trigger_supported': None,

@@ -95,6 +95,10 @@ def test_four_pilots_use_production_providers_and_identical_evidence(case, paire
     assert row['usage']['cost_usd'] is None and row['usage']['requests_without_total_tokens'] == 0
     assert all(c['latency_seconds'] >= 0 for c in row['api_calls'])
     assert row['manual_review']['status'] == 'pending'
+    assert row['manual_review']['worksheet_version'] == live.REVIEW_WORKSHEET_VERSION
+    assert row['manual_review']['criteria'] == live.REVIEW_CRITERIA
+    assert all(claim[key] is None for arm in ('agent_claims', 'standalone_claims')
+               for claim in row['manual_review'][arm] for key in live.REVIEW_CRITERIA)
     assert all(c['snapshot_freshness'] is None and c['trigger_established'] is None
                for c in row['manual_review']['agent_claims'])
 
@@ -369,6 +373,10 @@ def test_run_artifacts_checkpoint_and_verify_data(tmp_path, monkeypatch, paired_
     assert 'test-placeholder' not in json.dumps(report)
     if not interrupted:
         assert len(worksheet['cases']) == len(report['cases']) == 1
+        assert worksheet['cases'][0]['worksheet_version'] == live.REVIEW_WORKSHEET_VERSION
+        assert worksheet['cases'][0]['criteria'] == live.REVIEW_CRITERIA
+        assert all(claim[key] is None for claim in worksheet['cases'][0]['agent_claims']
+                   for key in live.REVIEW_CRITERIA)
         assert report['usage']['requests'] == len(requests) == 5
         assert report['mechanical_metrics']['unreviewed_cases'] == 1
     else:

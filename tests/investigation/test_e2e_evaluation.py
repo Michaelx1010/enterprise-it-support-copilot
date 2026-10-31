@@ -5,7 +5,7 @@ import json
 import pytest
 
 from app.operations.seed import load_seed
-from evaluation.investigation_e2e import load_cases, run_case, summarize
+from evaluation.investigation_e2e import load_cases, run_case, summarize, REVIEW_CRITERIA, REVIEW_WORKSHEET_VERSION
 
 CASES = load_cases()
 
@@ -25,8 +25,11 @@ def test_paired_pipeline_replay(case, rows):
     assert agent['planner_decisions'] <= 4 and agent['lookup_attempts'] <= 4 and agent['synthesis_attempts'] <= 1
     assert [e['result'] for e in agent['kb_evidence']] == result['controlled_kb']
     assert result['manual_review']['status'] == 'pending'
+    assert result['manual_review']['worksheet_version'] == REVIEW_WORKSHEET_VERSION
+    assert result['manual_review']['criteria'] == REVIEW_CRITERIA
     for claim in result['manual_review']['agent_claims']:
         assert claim['entailment'] is None and claim['trigger_established'] is None
+        assert all(claim[key] is None for key in REVIEW_CRITERIA)
 
 
 def test_negative_controls_and_denominators(rows):

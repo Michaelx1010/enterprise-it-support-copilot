@@ -116,6 +116,19 @@ def planner_metrics(case: Case, result) -> dict:
             'blocked_or_failed': sum(t.status in ('blocked', 'error', 'rejected') for t in result.lookup_trace)}
 
 
+REVIEW_WORKSHEET_VERSION = 'investigation-manual-review-v2'
+REVIEW_CRITERIA = {
+    'entailment': 'Split compound claims into atomic_claims and check each against supplied evidence; valid IDs alone are not support.',
+    'attribution': 'Distinguish ticket reports, recorded operational facts, KB policy and inferences; cite the source of each case-specific value.',
+    'snapshot_freshness': 'Check source timestamps and same-claim qualifications. Query time does not prove freshness or verified live state.',
+    'applicability': 'Match symptoms, prerequisites and the exact KB branch; future conditions stay separate from current actions.',
+    'completed_vs_proposed': 'Compare actions with completed ticket diagnostics. A repeat needs a documented reason supported by new evidence.',
+    'trigger_established': 'Check policy and factual support for each current handoff; conditional guidance is not a current trigger.',
+    'practical_usefulness': 'Assess remaining actionable work, focused missing information, safe role boundaries and unnecessary repetition.',
+    'summary_completeness': 'For the summary, check coherent complete sentences, no clipped words, and useful brevity rather than filling the cap.',
+}
+
+
 def review_items(report: dict | None, *, agent: bool) -> list[dict]:
     if report is None:
         return []
@@ -127,8 +140,8 @@ def review_items(report: dict | None, *, agent: bool) -> list[dict]:
         for index, value in enumerate(values if isinstance(values, list) else [values]):
             if value is not None:
                 items.append({'location': f'{name}.{index}', 'value': value,
-                              'atomic_claims': [], 'entailment': None, 'snapshot_freshness': None,
-                              'applicability': None, 'trigger_established': None, 'notes': None})
+                              'atomic_claims': [], **{criterion: None for criterion in REVIEW_CRITERIA},
+                              'notes': None})
     return items
 
 
@@ -173,7 +186,8 @@ def run_case(case: Case) -> dict:
             'agent': scoring_row(case, projection, evidence, agent_error),
             'standalone': scoring_row(case, rag, evidence, rag_error),
             'planner': planner_metrics(case, result),
-            'manual_review': {'status': 'pending', 'agent_claims': review_items(raw, agent=True),
+            'manual_review': {'status': 'pending', 'worksheet_version': REVIEW_WORKSHEET_VERSION,
+                              'criteria': dict(REVIEW_CRITERIA), 'agent_claims': review_items(raw, agent=True),
                               'standalone_claims': review_items(rag, agent=False),
                               'missing_information_sufficient': None, 'hidden_conditional_handoff': None,
                               'paired_usefulness': None, 'reviewer': None}}

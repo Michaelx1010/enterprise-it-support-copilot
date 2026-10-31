@@ -91,7 +91,7 @@ def test_three_lookups_then_synthesis_preserves_observations_and_budgets(
             planner_calls.append(payload)
             return httpx.Response(200, json=planner_response(choice))
         synthesis_payloads.append(payload)
-        assert payload['prompt_version'] == PROMPT_VERSION == 'investigation-synthesis-v5'
+        assert payload['prompt_version'] == PROMPT_VERSION == 'investigation-synthesis-v6'
         assert body['input'][0]['content'] == INSTRUCTIONS
         report = deepcopy(next(c.candidate for c in CASES if c.id == 'escalation-grounded'))
         # Preserve real fixture timestamps in prose rather than copying the compact eval dates.

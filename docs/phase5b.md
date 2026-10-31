@@ -295,6 +295,15 @@ blocked proposals redact their arguments. These are proposals, not proof of
 execution: `lookup_trace` is authoritative about guard outcomes and actual calls.
 No operational identifier expansion, new tools or relaxed budgets are introduced.
 
+Phase 5C.4 extends newly produced manual-review cases with
+`worksheet_version=investigation-manual-review-v2` and explicit criteria. Claim
+items add attribution, completed-versus-proposed work, practical usefulness and
+summary completeness alongside existing entailment, freshness, applicability and
+trigger checks. All grades remain pending until human review; both arms use the
+same rubric against their own available evidence. Strict worksheet JSON consumers
+must accept the additive fields. Historical reports/worksheets and mechanical
+scoring projections are unchanged. See [the detailed rubric](phase5c.md#manual-worksheet-v2).
+
 The runner reuses Phase 5A planner coverage/redundancy/unnecessary-lookup scoring,
 paired summaries and Phase 2 recommendation aggregates. Agent reports are
 projected into the Phase 2 shape **for mechanical step/KB citation metrics only**;

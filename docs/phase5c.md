@@ -8,7 +8,8 @@ The canonical report gains a nullable default for historical input compatibility
 all pre-existing invariants, standalone RAG, planning and frozen inputs are preserved.
 The synthesis wire contract and matching prompt are versioned. Phase 5C.3 now adds
 a versioned planner terminal for insufficient procedural evidence; implementation
-and verification are recorded below. Phase 5C.4 remains unimplemented. No new live requests.
+and verification are recorded below. Phase 5C.4 now refines synthesis instructions
+and manual review; Phase 5C.5 remains unimplemented. No new live requests.
 This is a small development sample, not a held-out benchmark.
 
 ## Preserved baseline and provenance
@@ -1002,3 +1003,234 @@ deterministic terminal, compatibility, safe diagnostics, unchanged guards and
 failure preservation passed review. Environment files and generated artifacts are
 ignored, and no credentials or unrelated files are included. The user authorized
 normal commit/push after these checks. No paid calls or Phase 5C.4 work occurred.
+
+## Phase 5C.4: synthesis grounding and usefulness
+
+Implemented against clean `main` at `e00910abb39305f76189d1f7e3f6831c970dec9b`.
+The Phase 5B source review above is the motivation, including the repeated
+confirmed-case reconnect, wrong-section route-refresh rationale, old incident
+described as ongoing, unreported password-change prerequisites and a 600-character
+summary ending mid-word. Rejected pilot outputs remain unavailable and are not
+retroactively assigned semantic causes or grades.
+
+### Prompt v6, unchanged V3 contract
+
+Only `INSTRUCTIONS` and `PROMPT_VERSION` change in application code, both in
+`app/investigation/synthesis.py`. The current identifier is
+`investigation-synthesis-v6`; the SDK still requests
+`InvestigationSynthesisDraftV3`. Models, model settings, 3,000-token output cap,
+one-attempt synthesis behavior, graph, planner V2, guards, citations, schemas,
+conditional guidance and typed trigger evidence are unchanged. Standalone Phase
+2B is the fixed comparator, including its previously documented applicability
+limitations. No output trimming, rewriting, keyword checks or semantic repair is
+added. A valid but ungrounded response can still pass structural validation.
+
+Precise instruction changes:
+
+- Select the section matching symptoms and established prerequisites. Do not
+  borrow a neighboring section's rationale. Unknown prerequisites remain unknown;
+  useful documented future actions belong in conditional guidance.
+- Separate completed checks from remaining actions. Record completed work as
+  ticket-attributed findings. A repeat needs a reason supported by new evidence
+  and the documented procedure. Ask for a specific missing detail when completion
+  is unclear rather than prescribing the whole sequence again.
+- Cite the source of case-specific values inside action text as well as findings.
+  KB references must support both action and stated purpose. Split compound
+  claims when different sources support different parts.
+- Preserve same-claim timestamp/current-state qualifications. A user report of a
+  current incident confirmation does not upgrade an older operational snapshot.
+  Returned scoped devices and empty `missing_entities` do not prove complete
+  physical inventory. Existing version-support/authentication distinctions remain.
+- Prefer one or two short complete summary sentences describing the reported
+  problem and supported disposition/evidence gap. Keep details in findings. The
+  unchanged 600-character cap is a ceiling; rewrite to fit instead of clipping
+  words or concatenating fragments.
+
+Four compact teaching examples illustrate completed versus remaining diagnostic
+work and conditional handoff, symptom-branch/prerequisite matching, narrow
+inventory/authentication attribution, and a complete summary. The retry example
+explicitly requires connectivity to have been confirmed first. They are patterns,
+not extra KB policies or citable evidence, and no example identifiers or fixed
+tool sequence are introduced. This follows the [official OpenAI prompt guidance](https://developers.openai.com/api/docs/guides/prompt-engineering)
+on versioning instructions in code and supplying a small variety of examples.
+
+Historical prompt v5 remains recoverable at the starting commit, with UTF-8
+instruction SHA-256
+`12fe0946860ddf444c0937dc01b4d85bfdc0daf4af12c8589bdb2b1f2533d3f9`.
+The v5 prompt had 1,365 whitespace-separated words; v6 has 1,751. This is a small
+instruction/example extension, not a model migration or added model call. It does
+increase input length; actual token cost, latency and quality impact are unmeasured.
+Live evaluation metadata reads v6 for future runs; historical prompt identifiers,
+reports, provenance and checksums are never relabelled.
+
+### Additive development cases
+
+`evaluation/investigation_synthesis_usefulness.jsonl` contains **26 authored V3
+responses: 13 positive and 13 deliberate semantic negative controls**. It reuses
+`SynthesisCase`, the existing replay provider and application validators; no new
+evaluation engine or model judge is introduced. KB IDs and section text match the
+existing corpus. Compact operational strings are fictional authored observations,
+not modified database records or actual collected live evidence. No expected
+label or review note is passed into model inputs.
+
+| Contrast | Manual review target |
+| --- | --- |
+| Completed Corporate retry versus repeating it | Acknowledge completed checks; recommend only the justified remaining handoff. |
+| First failure without retry versus immediate handoff | Retry remains useful; future escalation must not become current. |
+| Dated incident snapshot versus ongoing causal claim | Same-claim timestamp qualification and no inferred current user impact. |
+| Reported current incident confirmation versus upgraded operational claim | Attribute current confirmation to the ticket; do not treat it as independent tool verification. |
+| Connection-failure versus connected-resource branch | Action, purpose, symptoms and cited section must agree. Both directions have positive/negative examples. |
+| Confirmed password change versus an invented extra change | Remove saved credentials only under the documented prerequisite; do not prescribe another password change. |
+| Unreported password change: future guidance versus current step | Guidance-only insufficient evidence is valid; asking the prerequisite does not justify acting as if it occurred. |
+| Recorded client version versus approved-version claim | Inventory does not supply a support policy. |
+| Account flags versus successful authentication | Configuration/old login history do not prove success. An additional positive attributes a reported diagnostic event to the ticket. |
+| Returned device records versus exhaustive inventory | Do not infer undiscovered-device absence. |
+| Complete summary versus mid-word/awkward endings | Length and punctuation checks are not readability or completeness judgments. |
+
+There is **no verified-live operational source in this architecture**: tool outputs
+require `live_verified=false`. The current-incident contrast therefore uses a
+ticket reporting a status-page confirmation, explicitly attributed as unverified
+by this investigation. It does not pretend to supply an independently verified
+incident feed. A regression also confirms `live_verified=true` cannot pass the
+existing operational contract. A future real live-source integration would need
+separate design and approval; none is added here.
+
+All 26 authored responses intentionally pass schema/reference checks, including
+the 13 incorrect controls. That result demonstrates the limits of mechanical
+validation, **not 26 correct recommendations**. The first-failure negative includes
+real ticket/KB IDs and a populated typed basis that falsely alleges a retry; it
+still fails manual trigger review. The replay CLI now prints authored manual labels
+alongside mechanical outcomes for all datasets; existing metrics/denominators are
+unchanged. Labels are fixture annotations, not measured live-model grades.
+
+### Manual worksheet v2
+
+`review_items()` is shared by the deterministic paired replay and opt-in live
+runner. Worksheet cases now declare `investigation-manual-review-v2`, with explicit
+criteria and four additive item fields. Existing item fields and current-action
+metric projections retain their meaning. Original saved worksheets are not
+rewritten. Strict consumers of new worksheet JSON must accept the added fields;
+production recommendation/report schemas do not change.
+
+For each item, a human splits compound text into `atomic_claims`, compares each
+with the supplied evidence, and records `pass`, `fail` or `not_applicable` for each
+dimension with source-specific notes. `None` remains pending; the code never
+populates a semantic grade or treats a valid citation as a pass.
+
+| Criterion | Review question |
+| --- | --- |
+| `entailment` | Does the cited text establish each atomic claim, including action purpose and values? |
+| `attribution` (new) | Is the claim correctly attributed to ticket, snapshot, documented policy or explicitly unverified inference? |
+| `snapshot_freshness` | Does each dependent claim retain the actual source time and uncertainty without substituting query time? |
+| `applicability` | Do symptoms and prerequisites select this exact procedure branch? |
+| `completed_vs_proposed` (new) | Has the action already been completed, and is any repetition independently justified? |
+| `trigger_established` | Does each current handoff have applicable policy and factual trigger support? Future guidance is separate. |
+| `practical_usefulness` (new) | Is the remaining action useful, non-redundant and within human role/approval boundaries? |
+| `summary_completeness` (new) | Is the summary coherent, complete and concise? Apply to summary items; other items can be not applicable. |
+
+Both arms get the same review dimensions, judged only against their available
+evidence. Standalone is not penalized for lacking operational observations. Failed
+or rejected reports have no claim items and remain unreviewed/unavailable, never
+semantic successes. The manual grades are not automatically aggregated into a
+model-quality score in this milestone.
+
+### Verification and reproduction
+
+```powershell
+uv run --locked --offline --extra dev python -m evaluation.investigation_synthesis --cases evaluation/investigation_synthesis_usefulness.jsonl --draft-v3
+uv run --locked --offline --extra dev python -m evaluation.investigation_synthesis --cases evaluation/investigation_trigger_basis.jsonl --draft-v3
+uv run --locked --offline --extra dev python -m evaluation.planner_terminals
+uv run --locked --offline --extra dev python -m evaluation.phase5b_baseline
+uv run --locked --offline --env-file .env.db --extra dev pytest
+```
+
+The database command requires the existing separate disposable `_test` database;
+application records and vectors are fingerprinted read-only before and after the
+suite. Baseline verification needs the locally archived historical reports already
+documented above and does not rewrite them. No paid requests or API key are needed
+for replay/tests. All tests use mocks/scripted components for model requests.
+
+New regression coverage includes every authored V3 candidate through real SDK
+parsing over mocked HTTP and deterministic replay, unchanged model settings and
+one request, no label leakage, and exact preservation of accepted text. Deliberate
+bad citations, missing KB support, inconsistent reasons/basis, and a 601-character
+summary still reject without repair or retry. Full graph cases exercise completed
+work, first failure and guidance-only abstention, plus provider failures retaining
+classification, KB, executed observations and human-review boundaries. Existing
+paired/live artifact tests verify the additive worksheet fields remain pending.
+
+Remaining risks: these examples are development inputs based on observed defects,
+not a held-out benchmark. Structural tests cannot establish that a live model
+follows v6, that a claim is entailed, or that a summary is useful. Prompt growth
+can introduce tradeoffs and requires later controlled evaluation. There are no
+paid calls, commits, pushes or Phase 5C.5 pilot implementation in this milestone.
+
+### Phase 5C.4 verification (2026-10-31)
+
+The final complete suite passed **1,004 tests in 79.19 seconds**, with no warnings
+or skips: **922 offline and 82 PostgreSQL integration tests**. All 961 previous
+cases remain, plus 43 regressions. The suite includes the 21 exact validation,
+serialization and SDK schema parity checks. The first complete pass also passed;
+final review then made the teaching example's connectivity prerequisite explicit
+and reran the full suite. No validation rule was changed to make a test pass.
+
+Replay results, with semantic negatives kept distinct from mechanical acceptance:
+
+| Dataset | Cases | Accepted | Rejected/failed | Accepted authored semantic negatives |
+| --- | ---: | ---: | ---: | ---: |
+| Original synthesis | 11 | 8 | 3 | 4 |
+| Prior synthesis semantics | 14 | 14 | 0 | 5 |
+| Conditional guidance | 9 | 7 | 2 | 3 |
+| V3 trigger basis | 14 | 7 | 7 | 2 |
+| New usefulness controls | 26 | 26 | 0 | 13 |
+
+The eight-case planner-terminal replay still yields six expected choices and two
+incorrect controls. Frozen Phase 5A paired replay preserves its 12 cases, 16/17
+expected lookups, one redundant and one unnecessary lookup, and 12 pending manual
+reviews. The seven original Phase 5B pairs still pass baseline verification without
+writes or model/database calls. The new replay CLI explicitly prints the 13
+acceptable and 13 incorrect authored labels, with no live-model quality claim.
+
+Read-only fingerprints match the preimplementation snapshot and the suite's own
+before/after snapshots for **79 operational records and 36 KB chunks, vectors and
+metadata**. Temporary reader roles remaining: zero. All **49 pre-existing protected
+data/archive files** retain their hashes: 14 evaluation JSON/JSONL inputs, twelve
+KB documents, twelve original Phase 5B artifacts and eleven Phase 5C archive files.
+All pre-existing application modules except the synthesis prompt file are byte-for-byte
+unchanged. Comparing that file's parsed Python AST after excluding only
+`INSTRUCTIONS` and `PROMPT_VERSION` also matches the starting commit exactly.
+This verifies that payload building, abstention and runtime validation did not change.
+Current v6 instruction SHA-256:
+`28dfa57eb493444f75a2b33e6c99180d66dbfce1d8d29701cbe72801d60697f7`.
+
+Changed inventory: **12 files (10 modified, two new)**:
+
+- Application: `app/investigation/synthesis.py`.
+- Evaluation: `evaluation/investigation_e2e.py`, `investigation_synthesis.py`,
+  `live_investigation.py`, and new `investigation_synthesis_usefulness.jsonl`.
+- Tests under `tests/investigation/`: new `test_synthesis_usefulness.py`,
+  `test_synthesis_semantics.py`, `test_e2e_evaluation.py`, `test_live_evaluation.py`.
+- Documentation: `docs/phase5c.md`, `docs/phase4b2.md`, `docs/phase5b.md`.
+
+Whitespace and secret-format scans pass. Local credentials, environment files,
+generated reports and the one-time fixture authoring helper remain ignored;
+only the resulting development JSONL is part of the proposed change. Nothing is
+staged, committed or pushed. No dependencies, models, model-call budgets, planner,
+retrieval, tools, schemas, frozen inputs or standalone RAG code changed. Live
+semantic quality, token usage and latency remain unmeasured pending separate approval.
+
+Finalization review (2026-10-31) found no blocking issues across the **12 intended
+files**, including both new development files. No implementation, fixture or test
+changes were needed; only this review record was added. Static source review
+confirmed that application code differs from `e00910a` only in the two synthesis
+prompt constants, and both recorded prompt hashes match. Examples, control labels,
+pending manual grades, model-input separation, compatibility and excluded local
+artifacts match the documented scope. No material change to the verified code,
+fixtures, dependency configuration or environment was identified.
+
+Per the user's risk-based verification instruction, the existing **1,004-test
+pass (82 PostgreSQL tests and 21 schema parity checks)** and prior evaluation,
+database and archive integrity results were reused. No tests, database fingerprints
+or historical baseline consolidation were rerun. This documentation addition
+changes no executable example or command. The user authorized a normal commit and
+push after staged-diff review. No paid API calls or Phase 5C.5 work occurred.

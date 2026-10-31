@@ -10,7 +10,7 @@ from app.investigation.schemas import (
 )
 from app.providers.synthesis import SynthesisError, SynthesisProvider
 
-PROMPT_VERSION = 'investigation-synthesis-v5'
+PROMPT_VERSION = 'investigation-synthesis-v6'
 MAX_PAYLOAD_CHARACTERS = 64000
 
 INSTRUCTIONS = """Draft an advisory IT investigation report using ONLY the supplied evidence.
@@ -44,6 +44,8 @@ for this subject and time. A related topic or real citation ID is not enough.
   A tool named active incidents returns recorded status; it does not verify an incident
   is ongoing now, affects this user, or caused their symptoms. If the relevant timestamp
   is absent, say it is unavailable rather than substituting queried_at as observation time.
+  A ticket reporting a current status check is still a user report; attribute it to the
+  ticket instead of upgrading an older operational snapshot to verified current evidence.
 - Account enabled/unlocked and MFA enrolled are configuration facts, not credential
   validity, authentication success, working MFA or absence of authentication problems.
   Do not rule out or rank diagnoses as unlikely from these flags. Missing diagnostics
@@ -51,19 +53,30 @@ for this subject and time. A related topic or real citation ID is not enough.
 - An installed client version is inventory only. Call it supported, approved, compatible
   or up to date ONLY if supplied KB policy explicitly establishes that property for
   that version and applicable environment. Otherwise support status is not established.
+  Returned devices describe the scoped records only, not a complete physical inventory;
+  an empty missing_entities list does not prove that all devices were discovered.
 - Keep summary/findings to attributed reports, recorded facts and explicit KB policy.
   Omit speculative diagnoses. If a useful inference must be discussed, put it only in
   uncertainties, label it unverified, cite its basis and state what is not established.
   Merely adding 'likely' or 'possibly' does not make an unsupported causal claim grounded.
 
 APPLICABILITY BEFORE ACTION (same policy as standalone Phase 2B.1)
-Choose only a procedure branch whose trigger is supported by the ticket and applicable
-observations. Explicit negative facts constrain branch choice. Account/device/service
+Choose the KB section matching the actual symptoms and established prerequisites.
+Do not merge neighboring branches or borrow their rationale just because both were
+retrieved. An unreported prerequisite is unknown, not satisfied; if relevant, ask for
+it and keep its documented future action in conditional_guidance, not current steps.
+Explicit negative facts constrain branch choice. Account/device/service
 snapshots may inform applicability but NEVER authorize an undocumented procedure.
-Every step needs at least one KB citation; include ticket/observation references for its
-trigger where appropriate. Preserve approvals, identity checks, role boundaries,
+Every step needs KB support for its action AND stated purpose. Cite the ticket or
+observation for case-specific values and trigger claims, including values embedded
+in action text. Split a compound claim if different sources support different parts.
+Preserve approvals, identity checks, role boundaries,
 prerequisites and prohibitions. No invented commands, URLs, contacts, repair methods,
-permissions or promised outcomes. Do not repeat checks reported already completed.
+permissions or promised outcomes. Separate reported completed checks from remaining
+actions. Acknowledge completed work in findings with ticket references; steps contain
+only useful remaining actions. Repeat a completed check only if supplied new evidence
+and the documented procedure justify doing so; state and cite that reason. If completion
+or a prerequisite is unclear, request the specific missing detail, not the whole sequence.
 If sources conflict, cite both, describe the uncertainty, and do not silently pick the
 latest timestamp as truth. Abstain from actions dependent on that unresolved conflict;
 an independently applicable documented diagnostic or handoff may still be recommended.
@@ -127,7 +140,10 @@ steps, escalation_reason must be null. Do not change step types to evade this ru
 trigger never belongs in current steps. Always include trigger_basis, using null without current escalation.
 Every summary, finding, uncertainty, step and escalation reason must cite typed references
 from this request. A valid ID alone is not support: each source must support the whole claim.
-Keep the summary descriptive, not an uncited list of actions or a diagnosis. Prefer concise
+Keep the summary descriptive: one or two short, complete sentences about the reported
+problem and the supported disposition or evidence gap. Put inventory and detailed
+history in findings. The 600-character cap is a ceiling, not a target. Rewrite to fit;
+never clip words/sentences or concatenate fragments. Prefer concise
 findings and 1-4 current steps. Current action text stays in steps; future actions stay
 only in conditional_guidance. Missing information and missing_evidence should request
 needed symptom context/documentation, never passwords, API keys or MFA codes.
@@ -139,6 +155,24 @@ investigation_context and do not imply the investigation was exhaustive or succe
 Always mention that operational observations are recorded snapshots, not verified live
 state, in uncertainties when any were supplied. Human review is mandatory; no approval
 or authorization workflow has been implemented. Return only the structured report.
+
+COMPACT EXAMPLES (patterns only; these are not KB policy or citable evidence)
+- A supplied procedure says check connectivity, retry once, then hand off persistent
+  errors. If the ticket reports the check and failed retry, record them as completed
+  and recommend the documented handoff, not another retry. If connectivity is
+  confirmed but no retry occurred,
+  recommend it now and keep a possible later handoff in conditional_guidance.
+- A connected-but-resource-unavailable branch cannot explain a connection failure.
+  A remove-saved-credentials action conditioned on a recent password change belongs
+  in current steps only when that change is reported; otherwise keep useful future
+  guidance conditional and ask whether the prerequisite occurred.
+- Inventory saying version X at time T supports 'The T snapshot records X; current
+  installation is unverified,' not 'X is approved.' Account enrollment flags do not
+  prove a successful sign-in. A ticket reporting successful sign-in supports only
+  'The user reports successful sign-in.' Use actual request references for each fact.
+- Prefer a complete summary such as 'The user reports the error persisted after
+  retry. The documented handoff applies to that reported condition.' Use this pattern
+  only when supplied ticket and KB evidence establish it; omit an inventory dump.
 """
 
 

@@ -102,4 +102,11 @@ if __name__ == '__main__':
     cases = load_cases(args.cases)
     results = [evaluate(case, ReplayProvider(case.candidate, draft_v3=args.draft_v3)) for case in cases]
     print(json.dumps({'mode': 'offline_response_replay', 'metrics': summarize(cases, results),
-                      'outcomes': [{'id': r['id'], 'outcome': r['outcome']} for r in results]}, indent=2))
+                      'authored_controls': {
+                          'source': 'fixture labels, not measured live-model quality',
+                          **{label: sum(c.manual_verdict == label for c in cases)
+                             for label in ('acceptable', 'incorrect', 'not_reviewable')},
+                      },
+                      'outcomes': [{'id': r['id'], 'outcome': r['outcome'],
+                                    'authored_manual_verdict': c.manual_verdict}
+                                   for c, r in zip(cases, results, strict=True)]}, indent=2))
