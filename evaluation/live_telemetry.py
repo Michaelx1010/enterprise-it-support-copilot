@@ -33,6 +33,7 @@ class MeteredTransport(httpx.BaseTransport):
         payload = json.loads(request.content) if request.content else {}
         schema = payload.get('text', {}).get('format', {}).get('name')
         stage = {'TicketClassification': 'classification', 'PlannerResponse': 'planner',
+                 'PlannerResponseV2': 'planner',
                  'InvestigationSynthesis': 'synthesis', 'InvestigationSynthesisDraftV1': 'synthesis',
                  'InvestigationSynthesisDraftV2': 'synthesis',
                  'InvestigationSynthesisDraftV3': 'synthesis',

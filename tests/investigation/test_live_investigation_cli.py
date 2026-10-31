@@ -112,7 +112,7 @@ def test_construction_failure_closes_client(request_file, live_boundaries, plann
     assert json.loads(capsys.readouterr().err)['error']['code'] == 'investigation_setup_failed'
 
 
-@pytest.mark.parametrize('outcome', ['supported', 'clarify', 'failure', 'invalid_citation'])
+@pytest.mark.parametrize('outcome', ['supported', 'clarify', 'documentation_gap', 'failure', 'invalid_citation'])
 def test_opt_in_synthesis_cli(request_file, live_boundaries, planner_client, planner_response,
                              synthesis_report, as_synthesis_draft, monkeypatch, capsys, outcome):
     models = []
@@ -124,8 +124,9 @@ def test_opt_in_synthesis_cli(request_file, live_boundaries, planner_client, pla
         name = body['text']['format']['name']
         if name == 'TicketClassification':
             return httpx.Response(200, json=planner_response(raw_text=json.dumps({'category': 'Network', 'priority': 'Medium', 'summary': 'VPN cannot connect.'})))
-        if name == 'PlannerResponse':
+        if name == 'PlannerResponseV2':
             decision = {'kind': 'clarify', 'missing_fields': ['ticket_details']} if outcome == 'clarify' else {'kind': 'finish'}
+            if outcome == 'documentation_gap': decision = {'kind': 'insufficient_evidence', 'gap_kind': 'documentation'}
             return httpx.Response(200, json=planner_response(decision))
         assert name == 'InvestigationSynthesisDraftV3' and body['model'] == 'independent-synthesis'
         if outcome == 'failure': return httpx.Response(500, json={'error': {'message': 'CANARY', 'type': 'api_error'}})
@@ -141,8 +142,13 @@ def test_opt_in_synthesis_cli(request_file, live_boundaries, planner_client, pla
     assert data['synthesis_model'] == 'independent-synthesis' and result['phase'] == '4B.2'
     assert result['planner_decisions'] == 1 and result['lookup_attempts'] == 0
     assert code == (2 if outcome in ('failure', 'invalid_citation') else 0)
-    assert result['synthesis_attempts'] == (0 if outcome == 'clarify' else 1)
-    assert models.count('independent-synthesis') == (0 if outcome == 'clarify' else 1)
-    assert len(models) == (3 if outcome == 'clarify' else 4)
+    deterministic = outcome in ('clarify', 'documentation_gap')
+    assert result['synthesis_attempts'] == (0 if deterministic else 1)
+    assert models.count('independent-synthesis') == (0 if deterministic else 1)
+    assert len(models) == (3 if deterministic else 4)
+    if outcome == 'documentation_gap':
+        assert result['stop_reason'] == 'insufficient_evidence' and result['missing_fields'] == []
+        assert result['recommendation']['status'] == 'insufficient_evidence'
+        assert result['recommendation']['steps'] == []
     assert (result['recommendation'] is None) == (outcome in ('failure', 'invalid_citation'))
     assert client.is_closed() and 'CANARY' not in output.out + output.err

@@ -2,7 +2,8 @@
 
 Phase 4B.1 connects an OpenAI planner to the existing Phase 4A graph. The model
 chooses one of the six operational lookups, observes the validated result, then
-chooses another lookup, `finish`, or `clarify`. The scripted planner remains
+chooses another lookup or a terminal decision. Phase 5C.3 adds a documentation-gap
+terminal alongside `finish` and `clarify`; see [the contract update](phase5c.md#phase-5c3-implementation). The scripted planner remains
 available. This guide records the planning milestone; without the new optional
 `--synthesize` flag it still makes no synthesis request. See
 [Phase 4B.2](phase4b2.md) for the separately configured advisory report.
@@ -36,7 +37,7 @@ the restricted readers already described in Phase 4A.
 existing graph plan node
   -> Planner.decide(view, index)
   -> OpenAIPlanner: fresh evidence snapshot + strict response schema
-  -> validate PlannerResponse and convert to the existing Decision format
+  -> validate PlannerResponseV2 and convert to the existing Decision format
   -> existing graph decision validation
   -> existing allowlist / arguments / scope / deduplication / budget guard
   -> existing read-only tool and result validation
@@ -62,6 +63,7 @@ The model returns one object, for example:
 
 ```json
 {
+  "schema_version": "investigation-planner-response-v2",
   "decision": {
     "kind": "lookup",
     "tool": "get_employee_devices",
@@ -70,15 +72,20 @@ The model returns one object, for example:
 }
 ```
 
-The response schema has eight alternatives: one typed variant per tool, plus
-`finish` and `clarify`. It reuses existing input models; ticket/incident list
+The current response schema has nine alternatives: one typed variant per tool, plus
+`finish`, `clarify`, and `insufficient_evidence` with `gap_kind="documentation"`.
+The last choice concerns the supplied procedures, not missing scope identifiers.
+It reuses existing input models; ticket/incident list
 variants require explicit limits of 1–5, and ticket lookups require a nullable
 `since` field. Unknown tools, extra arguments, malformed IDs, invalid list limits,
 unrecognized clarification fields and recommendation text are rejected.
 
 The schema uses an object root with a nested `anyOf`, all properties required and
 closed objects. This follows the official [Structured Outputs schema requirements](https://developers.openai.com/api/docs/guides/structured-outputs).
-The adapter uses `client.responses.parse(text_format=PlannerResponse)`. It does
+The adapter uses `client.responses.parse(text_format=PlannerResponseV2)`. The literal
+`schema_version` is required. The historical unversioned `PlannerResponse` remains
+loadable with its original eight alternatives; live calls never fall back to it.
+It does
 not send an API `tools` declaration: the model proposes a structured decision and
 the application controls execution. No rationale or hidden reasoning transcript
 is requested or stored.
@@ -96,8 +103,9 @@ The user message is a JSON snapshot containing:
   operational observations, kept in distinct fields with their source metadata.
 
 Each call receives the latest snapshot. There is no server-side conversation ID
-or previous-response chain. The current prompt version is `investigation-planner-v3`
-(the initial milestone used v1 and the clarification correction used v2).
+or previous-response chain. The current prompt version is `investigation-planner-v4`
+(v1 was initial, v2 corrected clarification consistency, v3 improved efficiency,
+and v4 distinguishes missing operational information from insufficient procedures).
 Operational timestamps and `live_verified=false` remain visible. The model is
 instructed to treat all record prose, KB text and ticket content as data, and not
 to interpret historical resolutions as policy or old records as current facts.
@@ -112,7 +120,7 @@ extend scope. The response schema cannot authorize a tool call.
 The unchanged limits are four planner decisions, four lookup attempts, 24,000
 serialized operational-context characters, a 120-second between-node deadline,
 and a graph recursion backstop of 32. `remaining_decisions` includes the current
-decision. The model is instructed to finish or clarify on its final decision; if
+decision. The model is instructed to select a terminal outcome on its final decision; if
 it instead spends that decision on a lookup, the graph still enforces exhaustion
 and returns a partial result. The prompt does not replace any budget check.
 
@@ -134,7 +142,11 @@ its existing specific rejection code.
 the existing structured `missing_fields` labels and ends the run. It does not
 pause or persist execution. Every result still has `human_review_required=true`,
 `mutating_actions_executed=false`, `synthesis_status=not_run` and
-`recommendation=null`. Human review is an indicator, not implemented authorization.
+`recommendation=null` in planner-only mode. The new documentation terminal records
+`stop_reason="insufficient_evidence"`, with empty `missing_fields` and no executed
+action. In `--synthesize` mode it produces a deterministic no-action explanation,
+without a synthesis API request. It concerns only supplied KB evidence, not all
+organizational documentation. Human review is an indicator, not implemented authorization.
 
 ## CLI and configuration
 

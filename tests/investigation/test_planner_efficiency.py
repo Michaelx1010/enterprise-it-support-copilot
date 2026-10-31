@@ -62,7 +62,7 @@ def compare(inv_dependencies, inv_results, planner_client, planner_response):
 def test_labelled_choices_use_real_graph_and_mocked_sdk(compare, case, candidate):
     result, requests = compare(case, candidate)
     payload = requests[len(case.prior_lookups)]
-    assert payload['prompt_version'] == 'investigation-planner-v3'
+    assert payload['prompt_version'] == 'investigation-planner-v4'
     assert payload['control']['remaining_decisions'] == 4 - len(case.prior_lookups)
     assert len(payload['untrusted_evidence']['operational_observations']) == len(case.prior_lookups)
     assert payload['control']['service_ids'] == case.request.service_ids

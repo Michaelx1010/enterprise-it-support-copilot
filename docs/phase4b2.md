@@ -140,6 +140,7 @@ not passed as factual evidence to synthesis.
 | --- | --- |
 | No provider / existing scripted or plain live mode | No synthesis node; `not_run`, zero attempts, null recommendation |
 | Planner requests valid clarification | Application-generated abstention, zero synthesis calls; preserves missing fields |
+| Planner identifies insufficient procedural evidence (`gap_kind=documentation`, Phase 5C.3) | Application-generated no-action explanation limited to supplied KB evidence; empty missing scope fields, zero synthesis calls; preserves observations and errors |
 | No retrieved KB procedures, including retrieval failure | Application-generated abstention, zero synthesis calls; preserves observations and component errors |
 | Valid evidence and finish | One provider attempt, full schema/source validation, then assembly |
 | Partial investigation with some KB evidence | May produce a limited report; requires contextual uncertainty and cannot promote the run to completed |
@@ -147,7 +148,7 @@ not passed as factual evidence to synthesis.
 | Refusal, malformed/missing/incomplete output, API failure or invalid citation | `failed`, one attempt, null recommendation; gathered evidence and traces remain |
 | Deadline reached after the request | Discard candidate, record failure; never present a late response as a successful recommendation |
 
-Original completion rules remain: clean `finish`/`clarify` with no errors is
+Completion rules accept clean `finish`/`clarify`/documentation abstention with no errors as
 `completed`; errors/limits with classification or KB/operational evidence produce
 `partial`; no usable evidence produces `failed`. Completed means the workflow
 finished, not that an issue was repaired or the report was verified correct.

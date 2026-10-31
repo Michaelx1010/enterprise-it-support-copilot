@@ -88,6 +88,40 @@ def decisions(*items):
     return [{'kind': 'lookup', 'tool': tool, 'arguments': args} for tool, args in items] + [{'kind': 'finish'}]
 
 
+@pytest.mark.parametrize('planner_kind', ['scripted', 'mock_sdk'])
+def test_documentation_terminal_keeps_restricted_observations_and_data(
+        investigation_db, reader_pair, inv_request, inv_dependencies, planner_kind,
+        planner_client, planner_response):
+    import httpx
+    from unittest.mock import Mock
+    from app.providers.openai_planner import OpenAIPlanner
+
+    sequence = [
+        {'kind': 'lookup', 'tool': 'get_employee_account_status', 'arguments': {'employee_id': 'EMP-001'}},
+        {'kind': 'insufficient_evidence', 'gap_kind': 'documentation'},
+    ]
+    planner = ScriptedPlanner(sequence)
+    if planner_kind == 'mock_sdk':
+        choices = iter(sequence)
+        planner = OpenAIPlanner(planner_client(lambda request: httpx.Response(200, json=planner_response(next(choices)))))
+    db, store, *_ = reader_pair
+    before = snapshot(investigation_db)
+    synthesis = Mock()
+    deps = replace(inv_dependencies, db=db, store=store, fixture_lookup=None,
+                   embedder=ScriptedEmbedder(build_query(inv_request.ticket), SPEC, VECTOR),
+                   planner=planner, synthesis=synthesis)
+    result = run_investigation(inv_request, dependencies=deps)
+    assert result.status == 'completed' and result.stop_reason == 'insufficient_evidence'
+    assert result.planner_decisions == 2 and result.lookup_attempts == 1
+    assert len(result.kb_evidence) == 3 and len(result.operational_evidence) == 1
+    assert result.lookup_trace[0].executed and result.lookup_trace[0].status == 'ok'
+    assert not result.operational_evidence[0].observation.result.live_verified
+    assert result.missing_fields == [] and result.recommendation.steps == []
+    assert result.synthesis_attempts == 0 and result.errors == []
+    synthesis.generate.assert_not_called()
+    assert snapshot(investigation_db) == before
+
+
 @pytest.mark.parametrize('items', [
     [('get_employee_devices', {'employee_id': 'EMP-001'}), ('get_device_details', {'device_id': 'DEV-001'})],
     [('get_employee_account_status', {'employee_id': 'EMP-001'}), ('get_recent_support_tickets', {'employee_id': 'EMP-001'})],
@@ -354,7 +388,7 @@ def test_live_pair_reuses_real_retrieval_and_readonly_lookups(investigation_db, 
         raw = json.loads(request.content)
         payload = json.loads(raw['input'][1]['content'])
         schema = raw['text']['format']['name']
-        if schema == 'PlannerResponse':
+        if schema == 'PlannerResponseV2':
             body = planner_response(next(choices))
         elif schema == 'InvestigationSynthesisDraftV3':
             evidence = payload['untrusted_evidence']

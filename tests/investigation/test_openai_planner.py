@@ -32,11 +32,12 @@ VALID = [
     lookup('get_recent_support_tickets', employee_id='EMP-001', limit=5, since=None),
     lookup('get_active_service_incidents', service_id='SVC-001', limit=5),
     {'kind': 'finish'}, {'kind': 'clarify', 'missing_fields': ['employee_id', 'ticket_details']},
+    {'kind': 'insufficient_evidence', 'gap_kind': 'documentation'},
 ]
 
 
 @pytest.mark.parametrize('decision', VALID)
-def test_all_eight_structured_choices_roundtrip(view, planner_client, planner_response, decision):
+def test_all_nine_structured_choices_roundtrip(view, planner_client, planner_response, decision):
     client = planner_client(lambda request: httpx.Response(200, json=planner_response(decision)))
     assert OpenAIPlanner(client).decide(view, 0) == decision
 
@@ -56,7 +57,9 @@ def test_sdk_schema_is_closed_required_and_has_only_six_tools(view, planner_clie
     format = request['text']['format']
     assert format['strict'] is True
     schema = format['schema']
-    assert schema['type'] == 'object' and len(schema['properties']['decision']['anyOf']) == 8
+    assert format['name'] == 'PlannerResponseV2'
+    assert schema['properties']['schema_version']['const'] == 'investigation-planner-response-v2'
+    assert schema['type'] == 'object' and len(schema['properties']['decision']['anyOf']) == 9
     def check(value):
         if isinstance(value, dict):
             assert 'oneOf' not in value and 'discriminator' not in value and 'default' not in value

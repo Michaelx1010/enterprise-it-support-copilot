@@ -6,8 +6,9 @@ Phase 5C.2c final review passed on 2026-10-30: draft V3 requires typed policy/fa
 trigger evidence for current escalation. Conditional future guidance stays separate.
 The canonical report gains a nullable default for historical input compatibility;
 all pre-existing invariants, standalone RAG, planning and frozen inputs are preserved.
-The synthesis wire contract and matching prompt are versioned. 5C.3 and later
-checkpoints remain unimplemented. No new live requests.
+The synthesis wire contract and matching prompt are versioned. Phase 5C.3 now adds
+a versioned planner terminal for insufficient procedural evidence; implementation
+and verification are recorded below. Phase 5C.4 remains unimplemented. No new live requests.
 This is a small development sample, not a held-out benchmark.
 
 ## Preserved baseline and provenance
@@ -799,3 +800,205 @@ test file are included in the approved commit inventory. No credentials, local
 environment files, generated reports or unrelated changes are included. The user
 authorized a normal commit/push after verification. No paid calls or Phase 5C.3
 development occurred during finalization.
+
+## Phase 5C.3 implementation
+
+Local `main`, its remote-tracking ref and GitHub were verified at
+`c71f00d7bdf68bb94eb2f8b4a65b9e735939b275` before changes. Direct GitHub access
+failed; a command-scoped local proxy verified the remote without changing Git
+configuration, fetching, committing or pushing.
+
+### Minimal terminal contract
+
+The live provider now requests `PlannerResponseV2`, a closed application-owned
+Structured Outputs envelope with required literal version
+`"investigation-planner-response-v2"`. Its nested decision adds one choice:
+
+```json
+{
+  "schema_version": "investigation-planner-response-v2",
+  "decision": {"kind": "insufficient_evidence", "gap_kind": "documentation"}
+}
+```
+
+There is no free-text reason, action, missing-field list or invented identifier in
+that variant. The original six typed lookup variants, finish and clarify retain
+their contracts. The historical unversioned `PlannerResponse` remains unchanged;
+there is no version negotiation, automatic conversion of old live envelopes, or
+fallback. Scripted providers still return plain decision dictionaries and can
+use the new decision without a wire envelope. Existing scripts remain valid.
+
+Planner prompt v4 distinguishes three terminal meanings:
+
+| Choice | Intended use |
+| --- | --- |
+| `clarify` | Actually missing scope or symptom information would enable useful permitted investigation or distinguish applicable documented branches. |
+| `insufficient_evidence`, `gap_kind=documentation` | Supplied KB material does not establish an applicable procedure. Unrelated identifiers and operational lookups cannot supply missing policy. |
+| `finish` | Further permitted lookups would not help; a procedural gap is not the blocker. An applicable diagnostic/handoff can proceed to synthesis even with optional IDs absent. |
+
+The prompt preserves marginal-information-gain guidance and directs the planner
+to consider useful available lookups before clarifying or declaring a procedural
+gap. A supplied identifier only permits a lookup; it does not make it relevant.
+Tool failures, stale records and absent optional IDs do not themselves prove a
+documentation gap. Conversely, having retrieved chunks does not prove any is
+applicable. There is no keyword router, distance threshold or model judge.
+
+Existing clarification validation still rejects duplicate labels and requests for
+already supplied scope. Relevance of an absent identifier and procedure
+applicability remain semantic judgments; deterministic validation cannot prove
+them. This change gives the model an appropriate outcome and clearer instructions,
+not a guarantee that it will always choose correctly.
+
+### Graph behavior and compatibility
+
+The existing plan node validates the decision, records the terminal trace and
+stops the lookup loop. No node, execution loop or guard was added. With synthesis
+enabled, the synthesis node intercepts the documentation terminal after its
+existing deadline/context guards. It uses the existing canonical abstention
+formatter and makes **zero synthesis calls**:
+
+> The supplied KB evidence does not establish an applicable documented procedure
+> for this request. Escalation need is undetermined.
+
+The report asks for applicable procedure documentation for human review. It has
+`status=insufficient_evidence`, no current steps, empty conditional guidance,
+`escalation_required=false`, null escalation reason/basis, and context-cited
+summary/uncertainty. It neither requests unrelated IDs nor asserts that no
+procedure exists elsewhere. False escalation is not a safety assessment. This
+fixed text records the planner's bounded judgment; it is not independent proof
+that the planner assessed the KB correctly.
+
+The result records `stop_reason=insufficient_evidence` and the synthesis trace
+records `documentation_abstention`. `missing_fields=[]`; planner decisions,
+classification, retrieved chunks, executed observations, timestamps, errors and
+traces remain intact. A clean terminal is completed; existing errors still yield
+partial if usable evidence exists, otherwise failed. Completion does not mean
+resolution. Blocked/failed lookups, budget stops and planner errors cannot be
+bypassed by a later scripted documentation terminal. No retry/repair occurs.
+
+Without a synthesis provider (scripted CLI or plain live CLI), the existing
+planner-only output convention remains: no synthesis node, `not_run`, zero
+attempts, null recommendation, with the new terminal reason/trace and retained
+evidence. CLI flags and exit codes are unchanged. All reports remain advisory,
+with mandatory human review and no mutating actions or authorization workflow.
+
+Public result and synthesis JSON Schemas are unchanged. Exact hash checks cover
+historical planner, canonical report/result, synthesis drafts V1/V2/V3 and
+standalone Phase 2B in validation, serialization and SDK forms (21 checks).
+Strict **planner wire** consumers must adopt V2; consumers exhaustively handling
+stop-reason strings must recognize `insufficient_evidence`. No canonical report
+migration is needed. Synthesis V3 policy/factual triggers, current-step-derived
+escalation, conditional guidance, membership validation and all Phase 2B behavior
+remain unchanged.
+
+Telemetry recognizes both `PlannerResponse` and `PlannerResponseV2` as planner
+requests. The existing evaluation recorder preserves the new typed terminal;
+recommendation projections still score current actions only. Paired mocks verify
+zero synthesis requests/diagnostics for this path, retained identical KB evidence,
+normal standalone generation and no current escalation. Failure codes and
+redaction remain unchanged. Revalidation suppresses Pydantic serialization
+warnings from mutated parsed planner objects, since those warnings can include
+input values; the objects still reject, without logging those values.
+
+### Development evaluation and reproduction
+
+`evaluation/planner_terminals.jsonl` is an additive eight-case development set;
+`evaluation/planner_terminals.py` reuses the existing scripted dependencies and
+graph. It contains cafeteria recovery, genuine missing employee/product scope,
+supported troubleshooting without optional IDs, irrelevant KB, and missing
+essential symptom detail. Two explicit negative controls cover irrelevant-ID
+clarification and premature documentation abstention despite a supplied procedure.
+They are intentionally accepted structurally and **semantically incorrect**.
+
+```powershell
+uv run --locked --offline --extra dev python -m evaluation.planner_terminals
+uv run --locked --offline --extra dev python -m evaluation.investigation_synthesis --cases evaluation/investigation_trigger_basis.jsonl --draft-v3
+uv run --locked --offline --extra dev python -m evaluation.phase5b_baseline
+uv run --locked --offline --extra dev pytest -m "not integration"
+uv run --locked --offline --env-file .env.db --extra dev pytest
+```
+
+The final command requires locally configured administrative application/test
+URLs for fingerprint verification/test setup; integration fixtures modify only a
+separate disposable `_test` database. Production graph lookups use restricted
+reader credentials. No model key, paid call or application reseeding is required.
+Baseline verification additionally needs the locally archived reports described
+above; originals and derived archives are not rewritten. Fingerprints must be
+compared before and after testing, including vector contents, not just counts.
+
+Replay reports 8/8 mechanical completions, 6/8 matches to authored terminal and
+missing-field expectations, and two accepted incorrect negative controls. These
+are fixture assertions, **not measured live-model accuracy or improvement**.
+No evaluation labels enter the planner payload. The prior 14-case V3 replay still
+has seven accepted and seven rejected responses; its two accepted semantic
+negative controls remain incorrect. Full verification results follow below.
+
+### Phase 5C.3 verification (2026-10-30)
+
+The complete suite passes **961 tests: 879 offline and 82 PostgreSQL integration**,
+preserving the previous 891 cases and adding 70. This includes the 21 exact schema
+hash checks, eight-case scripted and mocked-SDK terminal replay, strict wire-version
+and variant rejection, revalidation without value-bearing warnings, fixed abstention,
+genuine clarification, unchanged supported synthesis, partial/failed results,
+deadline/budget/guard stops, evidence retention, CLI behavior, telemetry and paired
+evaluation. Two new restricted-reader integration cases use scripted/mocked-SDK
+planners and compare full database snapshots before/after the terminal branch.
+
+The initial full pass emitted warnings only from an intentionally corrupted parsed
+planner test object. Suppressing those warnings before unchanged validation and
+asserting no warning emission removed that diagnostic exposure. Final prompt review
+also changed the older generic "finish when lookups are redundant" wording to
+"choose a terminal decision", aligning it with the new terminal choices. No safety
+guard, schema acceptance rule, synthesis policy or production fallback was weakened.
+
+Before/after application fingerprints, and comparison with the preimplementation
+snapshot, preserve **79 operational records and 36 KB chunks, vectors and metadata**.
+Temporary integration reader roles remaining: zero. All 46 pre-existing protected
+data/report files retain their hashes: 13 evaluation JSON/JSONL inputs, twelve KB
+documents, twelve original Phase 5B artifacts and nine archived Phase 5C files.
+Baseline verification still validates all seven saved pairs without writes or API
+calls. The nine-case conditional-guidance replay remains seven accepted/two rejected,
+with its three accepted negative controls explicitly incorrect. The fourteen-case
+V3 results are unchanged as described above.
+
+Changed inventory: **19 files (16 modified, three new)**:
+
+- Application (5): `app/investigation/schemas.py`, `planner.py`, `graph.py`,
+  `scripted.py` (comment only), and `app/providers/openai_planner.py`.
+- Evaluation (3): `evaluation/live_telemetry.py`, new `planner_terminals.py` and
+  new `planner_terminals.jsonl`.
+- Tests (8, under `tests/investigation/`): new `test_planner_terminals.py`,
+  `conftest.py`, `test_openai_planner.py`, `test_planner_efficiency.py`,
+  `test_live_evaluation.py`, `test_live_investigation_cli.py`, `test_postgres.py`,
+  and `test_synthesis_semantics.py` (current planner schema identity only).
+- Documentation (3): `docs/phase4b1.md`, `docs/phase4b2.md`, `docs/phase5c.md`.
+
+Whitespace and secret-format scans pass. Local environment files, credentials and
+generated reports remain ignored; nothing is staged. No dependencies, database
+schema, seed data, frozen input, V3 synthesis implementation, standalone RAG,
+retrieval, operational tool, execution policy or budget changed. New fixture files
+are intentionally uncommitted development inputs, separate from frozen baselines.
+
+Remaining limitations: an absent ID can still be requested irrelevantly if the
+model ignores instructions; a typed documentation gap can still be premature.
+Real reference IDs, valid envelopes and fixed abstention text do not prove
+applicability, completeness or source entailment. Manual review remains necessary.
+Live planner quality and any reduction in irrelevant clarifications are unmeasured.
+No paid API calls, staging, commits, pushes or Phase 5C.4 implementation occurred.
+
+Finalization review (2026-10-31) reconciled all **19 files: 16 modified and three
+new development files**. No blocking findings. The complete suite passed again:
+**961 tests in 83.52 seconds**, including all 82 PostgreSQL integration tests and
+21 exact schema parity checks, with no warnings or skipped tests. The eight-case
+terminal replay again produced six expected choices and two explicitly incorrect
+semantic negative controls; the existing fourteen-case V3 replay retained seven
+acceptances and seven rejections, including its two incorrect accepted controls.
+All seven original Phase 5B saved pairs passed baseline verification without writes.
+Application fingerprints match both the suite's before/after snapshots and the
+preimplementation snapshot: 79 operational records and 36 KB chunks/vectors are
+unchanged, with zero temporary reader roles. All 46 protected fixture, KB, original
+report and archived baseline files retain their hashes. The exact V2 envelope,
+deterministic terminal, compatibility, safe diagnostics, unchanged guards and
+failure preservation passed review. Environment files and generated artifacts are
+ignored, and no credentials or unrelated files are included. The user authorized
+normal commit/push after these checks. No paid calls or Phase 5C.4 work occurred.

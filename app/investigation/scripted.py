@@ -36,7 +36,7 @@ class ScriptedPlanner:
         self.decisions = deepcopy(decisions)
 
     def decide(self, view: PlannerView, index: int) -> dict:
-        # Exhaustion is a planner error; an explicit finish/clarify is required.
+        # Exhaustion is a planner error; an explicit terminal decision is required.
         return deepcopy(self.decisions[index])
 
 

@@ -224,6 +224,11 @@ def synthesize_node(state: InvestigationState, runtime: Runtime[Dependencies]):
         return failure('deadline', skipped=True)
     if state['stop_reason'] == 'context_budget':
         return failure('context_limit', skipped=True)
+    if state['stop_reason'] == 'insufficient_evidence':
+        report = abstention('The supplied KB evidence does not establish an applicable documented procedure for this request.',
+                            ['Applicable procedure documentation is needed for human review.'])
+        return {'synthesis_status': 'completed', 'recommendation': report,
+                'graph_trace': _event(state, 'synthesize', 'documentation_abstention')}
     if state['stop_reason'] == 'clarify':
         report = abstention('The investigation requires clarification before recommending actions.',
                             ['Clarification needed: ' + field for field in state['missing_fields']])
@@ -263,7 +268,7 @@ def assemble_node(state: InvestigationState, runtime: Runtime[Dependencies]):
     if runtime is not None and not state['errors'] and runtime.context.clock() >= state['deadline']:
         state = state | {'stop_reason': 'deadline', 'errors': _error(state, 'budget', 'deadline')}
     usable = state['classification'] is not None or bool(state['kb_evidence'] or state['operational_evidence'])
-    clean = not state['errors'] and state['stop_reason'] in ('finish', 'clarify')
+    clean = not state['errors'] and state['stop_reason'] in ('finish', 'clarify', 'insufficient_evidence')
     status = 'completed' if clean else ('partial' if usable else 'failed')
     trace = _event(state, 'assemble', status)
     result = InvestigationResult(

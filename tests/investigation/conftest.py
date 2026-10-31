@@ -71,7 +71,9 @@ def planner_response():
     def body(decision=None, *, status='completed', refusal=False, empty=False, raw_text=None):
         content = {'type': 'refusal', 'refusal': 'Cannot comply.'} if refusal else {
             'type': 'output_text', 'annotations': [],
-            'text': raw_text if raw_text is not None else json.dumps({'decision': decision or {'kind': 'finish'}}),
+            'text': raw_text if raw_text is not None else json.dumps({
+                'schema_version': 'investigation-planner-response-v2',
+                'decision': decision or {'kind': 'finish'}}),
         }
         return {
             'id': 'resp_fixture', 'object': 'response', 'created_at': 0, 'model': 'test-model',

@@ -42,8 +42,8 @@ def paired_api(planner_response, as_synthesis_draft):
                 stage = payload['text']['format']['name']
                 if stage == 'TicketClassification':
                     candidate = case.classification.model_dump()
-                elif stage == 'PlannerResponse':
-                    candidate = {'decision': next(decisions)}
+                elif stage == 'PlannerResponseV2':
+                    candidate = {'schema_version': 'investigation-planner-response-v2', 'decision': next(decisions)}
                 elif stage == 'InvestigationSynthesisDraftV3':
                     candidate = as_synthesis_draft(case.agent_response)
                 else:
@@ -132,6 +132,32 @@ def test_paired_future_guidance_is_reviewable_but_not_a_current_escalation(paire
         assert len(future) == 1 and future[0]['trigger_established'] is None
 
 
+@pytest.mark.parametrize('case_id', ['unsupported-procedure', 'vpn-future-condition'])
+def test_paired_documentation_terminal_has_no_synthesis_request_and_preserves_metrics(case_id, paired_api):
+    case = live.select_cases([case_id])[0].model_copy(deep=True)
+    gap = {'kind': 'insufficient_evidence', 'gap_kind': 'documentation'}
+    case.decisions = [gap]  # Development response only; frozen labels/inputs stay unchanged.
+    deps, rag, meter, requests, _ = paired_api(case)
+    row = live.run_pair(case, dependencies=deps, standalone=rag, meter=meter)
+    assert row['agent']['outcome'] == row['standalone']['outcome'] == 'accepted'
+    assert row['agent_result']['stop_reason'] == 'insufficient_evidence'
+    assert row['agent_result']['recommendation']['steps'] == []
+    assert row['agent_result']['recommendation']['trigger_basis'] is None
+    assert not row['agent']['recommendation']['escalation_required']
+    assert row['agent_result']['missing_fields'] == [] and row['agent_result']['synthesis_attempts'] == 0
+    assert row['planner_decisions'][0]['decision'] == gap
+    assert len(requests) == row['usage']['requests'] == 4
+    assert [call['stage'] for call in row['api_calls']] == ['classification', 'embedding', 'planner', 'recommendation']
+    assert row['synthesis_diagnostics'] == []
+    assert row['manual_review']['status'] == 'pending'
+    assert [e['result'] for e in row['agent_result']['kb_evidence']] == row['shared_kb']
+    if case_id == 'vpn-future-condition':
+        # Explicit semantic negative control: the available retry is answerable.
+        # Acceptance/valid citations do not make this premature abstention correct.
+        assert case.kb_answerable and row['agent']['recommendation']['status'] == 'insufficient_evidence'
+        assert row['standalone']['recommendation']['status'] == 'supported'
+
+
 @pytest.mark.parametrize('invalid', [False, True])
 def test_paired_current_trigger_is_reviewable_without_changing_escalation_projection(paired_api, invalid):
     from evaluation.investigation_synthesis import load_cases
@@ -211,7 +237,7 @@ def test_partial_workflows_keep_production_semantics(paired_api, failure):
     if failure == 'budget':
         case.decisions = case.decisions[:3] + [{'kind': 'lookup', 'tool': 'get_device_details', 'arguments': {'device_id': 'DEV-001'}}]
     def mutate(stage, body, payload):
-        if (failure, stage) in (('classification', 'TicketClassification'), ('planner', 'PlannerResponse')):
+        if (failure, stage) in (('classification', 'TicketClassification'), ('planner', 'PlannerResponseV2')):
             return httpx.Response(500, json={'error': {'message': 'DO-NOT-LOG'}})
         return httpx.Response(200, json=body)
     deps, rag, meter, *_ = paired_api(case, mutate)

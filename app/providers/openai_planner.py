@@ -5,7 +5,7 @@ import os
 from openai import APIError, OpenAI
 from pydantic import ValidationError
 
-from app.investigation.planner import INSTRUCTIONS, PlannerError, PlannerResponse, PlannerView, build_payload
+from app.investigation.planner import INSTRUCTIONS, PlannerError, PlannerResponseV2, PlannerView, build_payload
 
 DEFAULT_MODEL = 'gpt-4.1-mini-2025-04-14'
 MAX_OUTPUT_TOKENS = 700
@@ -35,7 +35,7 @@ class OpenAIPlanner:
                 model=self.model,
                 input=[{'role': 'system', 'content': INSTRUCTIONS},
                        {'role': 'user', 'content': build_payload(view, index)}],
-                text_format=PlannerResponse, max_output_tokens=MAX_OUTPUT_TOKENS,
+                text_format=PlannerResponseV2, max_output_tokens=MAX_OUTPUT_TOKENS,
                 temperature=0, store=False,
             )
         except APIError:
@@ -54,9 +54,10 @@ class OpenAIPlanner:
         if len(messages) != 1 or len(messages[0].content) != 1 or messages[0].content[0].type != 'output_text':
             raise PlannerError('invalid_output')
         try:
-            if not isinstance(response.output_parsed, PlannerResponse):
+            if not isinstance(response.output_parsed, PlannerResponseV2):
                 raise ValueError('Unexpected parsed type.')
-            result = PlannerResponse.model_validate(response.output_parsed.model_dump())
+            # Revalidate mutated/substitute SDK objects without logging their values.
+            result = PlannerResponseV2.model_validate(response.output_parsed.model_dump(warnings=False))
             return result.graph_decision()
         except (ValidationError, ValueError, TypeError):
             raise PlannerError('invalid_output') from None

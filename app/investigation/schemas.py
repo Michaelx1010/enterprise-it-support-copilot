@@ -48,7 +48,14 @@ class ClarifyDecision(Model):
     missing_fields: list[Literal['employee_id', 'service_ids', 'software_ids', 'ticket_details']] = Field(min_length=1, max_length=4)
 
 
-Decision = Annotated[LookupDecision | FinishDecision | ClarifyDecision, Field(discriminator='kind')]
+class DocumentationGapDecision(Model):
+    """Planner judgment about supplied procedures, not a request for scope IDs."""
+
+    kind: Literal['insufficient_evidence']
+    gap_kind: Literal['documentation']
+
+
+Decision = Annotated[LookupDecision | FinishDecision | ClarifyDecision | DocumentationGapDecision, Field(discriminator='kind')]
 DECISION_ADAPTER = TypeAdapter(Decision)
 
 

@@ -86,7 +86,7 @@ def test_three_lookups_then_synthesis_preserves_observations_and_budgets(
     def handler(request):
         body = json.loads(request.content)
         payload = json.loads(body['input'][1]['content'])
-        if body['text']['format']['name'] == 'PlannerResponse':
+        if body['text']['format']['name'] == 'PlannerResponseV2':
             choice = decisions[len(planner_calls)]
             planner_calls.append(payload)
             return httpx.Response(200, json=planner_response(choice))
