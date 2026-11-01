@@ -13,7 +13,7 @@ from app.operations.records import Model
 from app.rag.schemas import Text
 
 DRAFT_VERSION = 'investigation-synthesis-draft-v1'
-CURRENT_DRAFT_VERSION = 'investigation-synthesis-draft-v3'
+CURRENT_DRAFT_VERSION = 'investigation-synthesis-draft-v4'
 
 
 class InvestigationSynthesisDraftV1(Model):
@@ -56,3 +56,32 @@ class InvestigationSynthesisDraftV3(InvestigationSynthesisDraftV2):
         if report.escalation_required and report.trigger_basis is None:
             raise PydanticCustomError('escalation_trigger_mismatch', 'Current escalation requires a trigger basis in draft V3.')
         return report
+
+
+class InvestigationSynthesisDraftV4(Model):
+    """Current wire contract; status and escalation are derived, never repaired."""
+
+    schema_version: Literal['investigation-synthesis-draft-v4']
+    summary: CitedStatement = deepcopy(InvestigationSynthesis.model_fields['summary'])
+    findings: list[CitedStatement] = deepcopy(InvestigationSynthesis.model_fields['findings'])
+    steps: list[InvestigationStep] = deepcopy(InvestigationSynthesis.model_fields['steps'])
+    missing_information: list[Text] = deepcopy(InvestigationSynthesis.model_fields['missing_information'])
+    uncertainties: list[CitedStatement] = deepcopy(InvestigationSynthesis.model_fields['uncertainties'])
+    escalation_reason: CitedStatement | None = deepcopy(InvestigationSynthesis.model_fields['escalation_reason'])
+    conditional_guidance: ConditionalGuidanceEntries
+    trigger_basis: TriggerBasis
+
+    def to_canonical(self) -> InvestigationSynthesis:
+        fields = self.model_dump(exclude={'schema_version'})
+        fields['status'] = 'supported' if self.steps else 'insufficient_evidence'
+        fields['escalation_required'] = any(step.step_type == 'escalation' for step in self.steps)
+        # Preserve every supplied step, reason, reference and limitation verbatim.
+        report = InvestigationSynthesis.model_validate(fields)
+        if report.escalation_required and report.trigger_basis is None:
+            raise PydanticCustomError('escalation_trigger_mismatch', 'Current escalation requires a trigger basis in draft V4.')
+        return report
+
+    @model_validator(mode='after')
+    def valid_canonical_contract(self) -> Self:
+        self.to_canonical()
+        return self

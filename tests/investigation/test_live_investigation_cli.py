@@ -128,7 +128,7 @@ def test_opt_in_synthesis_cli(request_file, live_boundaries, planner_client, pla
             decision = {'kind': 'clarify', 'missing_fields': ['ticket_details']} if outcome == 'clarify' else {'kind': 'finish'}
             if outcome == 'documentation_gap': decision = {'kind': 'insufficient_evidence', 'gap_kind': 'documentation'}
             return httpx.Response(200, json=planner_response(decision))
-        assert name == 'InvestigationSynthesisDraftV3' and body['model'] == 'independent-synthesis'
+        assert name == 'InvestigationSynthesisDraftV4' and body['model'] == 'independent-synthesis'
         if outcome == 'failure': return httpx.Response(500, json={'error': {'message': 'CANARY', 'type': 'api_error'}})
         if outcome == 'invalid_citation': synthesis_report['steps'][0]['references'][0]['chunk_id'] = 'fake'
         return httpx.Response(200, json=planner_response(raw_text=json.dumps(as_synthesis_draft(synthesis_report))))

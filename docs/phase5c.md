@@ -552,6 +552,14 @@ acceptance cannot demonstrate that a live model follows the examples.
 
 ### 5C.5: controlled validation after separate paid approval
 
+Preparation checkpoint (2026-10-31): the frozen configuration, eight-attempt
+matrix, review gates, estimated costs, aggregate admission controller and exact
+proposed command are now recorded in [Phase 5C.5 readiness](phase5c5-readiness.md).
+No live pilot has been executed. The user's risk-based instruction supersedes the
+original full-suite repetition below: reuse the 1,004-test application pass and
+integrity results, and test only the evaluation preparation changes. Separate
+explicit approval is required before any paid execution.
+
 Run the entire existing suite plus new tests, including restricted-role PostgreSQL
 integration and before/after KB/vector/ops fingerprints. Preserve frozen Phase 5A
 fixtures, all Phase 5B attempts, and comparison denominators. Put new cases in an
@@ -1234,3 +1242,93 @@ database and archive integrity results were reused. No tests, database fingerpri
 or historical baseline consolidation were rerun. This documentation addition
 changes no executable example or command. The user authorized a normal commit and
 push after staged-diff review. No paid API calls or Phase 5C.5 work occurred.
+
+## Post-pilot reliability checkpoint: derived synthesis status (2026-11-01)
+
+Pilot-002 retained three SDK `status_steps_mismatch` failures, but no rejected
+response text. Their precise contradictions remain unknown. This checkpoint
+removes that redundant model-authored field, not the need for semantic review.
+
+`InvestigationSynthesisDraftV4` requires the literal wire version
+`investigation-synthesis-draft-v4`. It forbids both `status` and
+`escalation_required`. Conversion derives canonical status as `supported` iff
+current steps exist, otherwise `insufficient_evidence`; current escalation still
+depends exclusively on escalation-typed current steps. Conditional guidance does
+not affect either field. No steps, prose, reasons or citations are repaired,
+removed or invented. Canonical validation and the required current trigger basis
+remain authoritative, followed by evidence membership and limitation validation.
+
+The public canonical report/result JSON Schemas and V1/V2/V3 contracts are
+unchanged. Scripted providers and archived canonical/V3 replay remain supported;
+the live provider requests V4 only, with no fallback or retry. Model settings,
+planner V2, graph topology, operational tools, budgets, retrieval and standalone
+RAG remain unchanged. Synthesis prompt `investigation-synthesis-v7` changes only
+the wire-version/status instructions. The four teaching examples are unchanged.
+Instruction SHA-256:
+`6fc2ec03bd3b9a69d5e711fac3eac88c9300300945d3d6f6b9df2442c3592c3c`.
+Evaluation telemetry recognizes V4 as synthesis while retaining historical names.
+
+A zero-step output can be structurally accepted without being a successful
+answer. Authored SDK and paired-run regressions verify that an answerable case
+with zero current steps, including future-guidance-only output, increments the
+existing `incorrect_abstentions` metric. Expected labels remain unchanged; empty
+step citation coverage stays undefined and manual grades stay pending. The two
+status/steps contradiction directions still reject under V1–V3, while V4 rejects
+any supplied status field. This removes the contradiction family from valid V4
+conversion; it does not recover or establish the quality of the three lost outputs.
+
+Verification: **277 focused tests passed**, followed by **one complete suite run:
+1,057 passed in 80.20 seconds**, including **82 PostgreSQL integration tests** and
+the existing **21 schema parity checks**. Initial focused runs found old V3 mock
+responses and test-authoring errors; those were corrected before the full run.
+No subsequent implementation changes required repeating that full run.
+Read-only before/after fingerprints match for all **79 operational records and
+36 KB chunks/vectors**. Historical reports, frozen inputs, both pilot directories,
+original worksheets and local forensic-review artifacts retain their byte hashes.
+No paid calls, pilot-003, commits or pushes occurred.
+
+The frozen Phase 5C.5 controller/protocol are deliberately unchanged: they reject
+this modified candidate, and their V3-only admission guard blocks V4. Tests retain
+that rejection and exercise archived dry-run logic with explicitly mocked protocol
+loading. A future live evaluation requires separate approval and configuration;
+this checkpoint does not authorize or prepare one.
+
+Exact incremental inventory: **17 files**, relative to the working tree at the
+start of this checkpoint (pre-existing Phase 5C.5 preparation changes are retained):
+
+- `app/investigation/synthesis_draft.py`
+- `app/investigation/synthesis.py`
+- `app/providers/openai_synthesis.py`
+- `evaluation/live_telemetry.py`
+- `docs/phase5c.md`
+- `tests/investigation/conftest.py`
+- `tests/investigation/test_conditional_guidance.py`
+- `tests/investigation/test_live_evaluation.py`
+- `tests/investigation/test_live_investigation_cli.py`
+- `tests/investigation/test_pilot_readiness.py`
+- `tests/investigation/test_postgres.py`
+- `tests/investigation/test_synthesis_diagnostics.py`
+- `tests/investigation/test_synthesis_draft.py`
+- `tests/investigation/test_synthesis_semantics.py`
+- `tests/investigation/test_synthesis_usefulness.py`
+- `tests/investigation/test_trigger_basis.py`
+- `tests/investigation/test_synthesis_status.py` (new authored offline regressions)
+
+Most test edits move current SDK mocks to V4 while retaining explicit historical
+replays and validation. No evaluation dataset or production scoring rule changed.
+Unsupported actions can still be typed as current steps, and relevant procedures
+can still be omitted. Source entailment, temporal applicability and correct
+abstention remain semantic judgments. Fixture acceptance measures mechanics,
+not live-model improvement.
+
+Finalization review (2026-11-01) reconciled the combined working tree to **21
+unique files: 16 modified and five new**, including the previously reviewed
+Phase 5C.5 preparation increment and this 17-file V4 increment. Runtime, tests,
+fixtures and dependency files match the verified versions; the **277 focused /
+1,057 full-suite** results and prior database integrity checks are reused without
+rerunning tests or querying the database. The only review correction marks the
+readiness document as historical so its V6/V3 commands cannot be mistaken for
+instructions applicable to V4. Protocol/controller hashes still match the archived
+values. Ignored pilot outputs, forensic reviews, local environments and credentials
+are excluded from the combined commit. No freeze, model setting or safety boundary
+was changed, and no new paid evaluation is authorized.

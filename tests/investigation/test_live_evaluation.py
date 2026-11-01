@@ -44,7 +44,7 @@ def paired_api(planner_response, as_synthesis_draft):
                     candidate = case.classification.model_dump()
                 elif stage == 'PlannerResponseV2':
                     candidate = {'schema_version': 'investigation-planner-response-v2', 'decision': next(decisions)}
-                elif stage == 'InvestigationSynthesisDraftV3':
+                elif stage == 'InvestigationSynthesisDraftV4':
                     candidate = as_synthesis_draft(case.agent_response)
                 else:
                     candidate = deepcopy(case.rag_response)
@@ -81,7 +81,7 @@ def test_four_pilots_use_production_providers_and_identical_evidence(case, paire
     assert [e['result'] for e in row['agent_result']['kb_evidence']] == row['shared_kb']
     bodies = {r['text']['format']['name']: json.loads(r['input'][1]['content'])
               for r in requests if 'text' in r and r['text']['format']['name'] != 'TicketClassification'}
-    agent, standalone = bodies['InvestigationSynthesisDraftV3'], bodies['SupportRecommendation']
+    agent, standalone = bodies['InvestigationSynthesisDraftV4'], bodies['SupportRecommendation']
     assert standalone['ticket'] == agent['untrusted_evidence']['ticket'] == case.request.ticket.model_dump()
     for a, b in zip(agent['untrusted_evidence']['kb_procedures'], standalone['evidence'], strict=True):
         assert {key: a['result']['chunk'][key] for key in b} == b
@@ -188,8 +188,8 @@ def test_paired_current_trigger_is_reviewable_without_changing_escalation_projec
 
 
 @pytest.mark.parametrize('stage, failure, outcome', [
-    ('InvestigationSynthesisDraftV3', 'http', 'failed'), ('InvestigationSynthesisDraftV3', 'schema', 'rejected'),
-    ('InvestigationSynthesisDraftV3', 'citation', 'rejected'), ('SupportRecommendation', 'http', 'failed'),
+    ('InvestigationSynthesisDraftV4', 'http', 'failed'), ('InvestigationSynthesisDraftV4', 'schema', 'rejected'),
+    ('InvestigationSynthesisDraftV4', 'citation', 'rejected'), ('SupportRecommendation', 'http', 'failed'),
     ('SupportRecommendation', 'schema', 'rejected'), ('SupportRecommendation', 'citation', 'rejected'),
 ])
 def test_failures_preserve_evidence_and_are_not_successful_abstentions(paired_api, stage, failure, outcome):
@@ -200,7 +200,7 @@ def test_failures_preserve_evidence_and_are_not_successful_abstentions(paired_ap
             candidate = json.loads(body['output'][0]['content'][0]['text'])
             if failure == 'schema':
                 candidate['steps'] = []
-            elif stage == 'InvestigationSynthesisDraftV3':
+            elif stage == 'InvestigationSynthesisDraftV4':
                 candidate['steps'][0]['references'][0]['chunk_id'] = 'invented'
             else:
                 candidate['steps'][0]['supporting_chunk_ids'] = ['invented']
@@ -209,7 +209,7 @@ def test_failures_preserve_evidence_and_are_not_successful_abstentions(paired_ap
     case = live.select_cases(['vpn-confirmed'])[0]
     deps, rag, meter, requests, _ = paired_api(case, mutate)
     row = live.run_pair(case, dependencies=deps, standalone=rag, meter=meter)
-    arm = 'agent' if stage == 'InvestigationSynthesisDraftV3' else 'standalone'
+    arm = 'agent' if stage == 'InvestigationSynthesisDraftV4' else 'standalone'
     assert row[arm]['outcome'] == outcome and row[arm]['recommendation'] is None
     assert len(row['agent_result']['operational_evidence']) == 3
     assert len(row['shared_kb']) == 2
@@ -416,3 +416,33 @@ def test_db_preflight_does_not_fall_back_to_admin_credentials(monkeypatch, capsy
     captured = capsys.readouterr()
     assert 'DO-NOT-LOG' not in captured.err
     assert json.loads(captured.err)['error'] == 'database_preflight_failed'
+
+
+@pytest.mark.parametrize('request_limit', [6, 8])
+def test_frozen_pilot_blocks_v4_and_preserves_pipeline_evidence_without_retries(paired_api, request_limit):
+    from evaluation.phase5c_pilot import PROTOCOL, BudgetedTransport, PilotBudget
+
+    case = live.select_cases(['vpn-confirmed'])[0]
+    deps, _, _, _, handler = paired_api(case)
+    protocol = json.loads(PROTOCOL.read_text(encoding='utf-8'))
+    protocol['budget']['max_requests'] = request_limit
+    budget = PilotBudget(protocol)
+    meter = BudgetedTransport(httpx.MockTransport(handler), budget, '02-vpn-confirmed')
+    with OpenAI(api_key='test-placeholder', base_url='https://api.openai.com/v1', max_retries=0,
+                http_client=httpx.Client(transport=meter)) as client:
+        deps = replace(deps, classifier=OpenAIProvider(client), embedder=OpenAIEmbeddings(client),
+                       planner=OpenAIPlanner(client), synthesis=OpenAISynthesis(client))
+        row = live.run_pair(case, dependencies=deps, standalone=OpenAIRecommendation(client), meter=meter)
+    assert len(meter.calls) == len(budget.entries) == 6
+    assert len(row['agent_result']['operational_evidence']) == 3
+    assert row['shared_kb'] and len(row['planner_decisions']) == 4
+    assert row['manual_review']['status'] == 'pending'
+    assert row['agent_result']['human_review_required']
+    assert not row['agent_result']['mutating_actions_executed']
+    # The archived controller is deliberately V3-only. It blocks V4 before dispatch,
+    # even if its request ceiling would otherwise admit more calls.
+    assert budget.stop_reason == 'request_configuration_changed'
+    assert row['agent_result']['status'] == 'partial'
+    assert row['agent_result']['recommendation'] is None
+    assert any(e['code'] == 'synthesis_provider_failure' for e in row['agent_result']['errors'])
+    assert row['agent']['outcome'] == row['standalone']['outcome'] == 'failed'

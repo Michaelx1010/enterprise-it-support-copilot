@@ -12,7 +12,7 @@ from pydantic_core import PydanticCustomError
 
 from app.investigation.graph import run_investigation
 from app.investigation.schemas import InvestigationSynthesis
-from app.investigation.synthesis_draft import InvestigationSynthesisDraftV3
+from app.investigation.synthesis_draft import InvestigationSynthesisDraftV4
 from app.providers.openai_synthesis import OpenAISynthesis
 from app.providers.synthesis import SynthesisError
 from evaluation.investigation_e2e import RagReplay
@@ -29,7 +29,7 @@ from evaluation.synthesis_diagnostics import ObservedSynthesis, error_details
     ('duplicate_refs', 'value_error', ['summary']),
     ('escalation_flag', 'extra_forbidden', ['escalation_required']),
     ('escalation_reason', 'escalation_reason_mismatch', []),
-    ('abstention_steps', 'status_steps_mismatch', []),
+    ('supplied_status', 'extra_forbidden', ['status']),
     ('reason_without_kb', 'escalation_reason_missing_kb', []),
 ])
 def test_sdk_parse_runs_application_contracts_safely(planner_client, planner_response, synthesis_report,
@@ -41,7 +41,7 @@ def test_sdk_parse_runs_application_contracts_safely(planner_client, planner_res
     if failure == 'duplicate_refs': candidate['summary']['references'] *= 2
     if failure == 'escalation_flag': candidate['escalation_required'] = True
     if failure == 'escalation_reason': candidate['escalation_reason'] = deepcopy(candidate['summary'])
-    if failure == 'abstention_steps': candidate['status'] = 'insufficient_evidence'
+    if failure == 'supplied_status': candidate['status'] = 'insufficient_evidence'
     if failure == 'reason_without_kb':
         candidate['steps'][0]['step_type'] = 'escalation'
         candidate['escalation_reason'] = deepcopy(candidate['summary'])
@@ -92,8 +92,8 @@ class ParsedClient:
     ('sdk_type', 'sdk_parse', 'type_error'),
 ])
 def test_sdk_return_is_distinct_from_later_rejection(synthesis_report, as_synthesis_draft, failure, stage, exception):
-    parsed = InvestigationSynthesisDraftV3.model_validate(as_synthesis_draft(synthesis_report))
-    if failure == 'contract': parsed.status = 'insufficient_evidence'
+    parsed = InvestigationSynthesisDraftV4.model_validate(as_synthesis_draft(synthesis_report))
+    if failure == 'contract': parsed.escalation_reason = parsed.summary
     client = ParsedClient('DO_NOT_LOG' if failure == 'wrong_type' else parsed,
         unexpected_item=failure == 'shape',
         failure=ValueError('DO_NOT_LOG') if failure == 'sdk_value' else TypeError('DO_NOT_LOG') if failure == 'sdk_type' else None)
@@ -106,7 +106,7 @@ def test_sdk_return_is_distinct_from_later_rejection(synthesis_report, as_synthe
     assert event['stage'] == stage and event['exception_type'] == exception
     assert 'DO_NOT_LOG' not in json.dumps(observer.events)
     if failure == 'contract':
-        assert event['errors'][0]['type'] == 'status_steps_mismatch' and event['errors'][0]['loc'] == []
+        assert event['errors'][0]['type'] == 'escalation_reason_mismatch' and event['errors'][0]['loc'] == []
         assert observer.events[0] == {'stage': 'sdk_parse', 'outcome': 'returned'}
 
 

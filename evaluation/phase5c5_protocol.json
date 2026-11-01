@@ -1,0 +1,254 @@
+{
+  "protocol_version": "phase5c5-pilot-v1",
+  "purpose": "Predeclared development pilot; not a held-out benchmark. No live execution approved.",
+  "candidate_git_commit": "495b24a8f1410f2a88e402474721b16121b134be",
+  "application_sha256": "de2b3168f137f237e280d024d230364291e5ceaf0d5ba49575310ddf87523bb5",
+  "lockfile_sha256": "6ca15d767cc9a9697c01ed60262a841e661e30e47f12a9ecf0d61fb0d113bb94",
+  "prompt_versions": {
+    "planner": "investigation-planner-v4",
+    "synthesis": "investigation-synthesis-v6",
+    "standalone": "grounded-recommendation-v4"
+  },
+  "prompt_sha256": {
+    "planner": "e8493fefa6e5cf1dd47386dfe52e74404e0a7286e0cdee2e7b32679791fe34aa",
+    "synthesis": "28dfa57eb493444f75a2b33e6c99180d66dbfce1d8d29701cbe72801d60697f7",
+    "standalone": "8fbaf1fb619b7075dfa872cf675e5c5446ac63e0f979d7a43edfec595da38275"
+  },
+  "wire_versions": {
+    "planner": "investigation-planner-response-v2",
+    "synthesis": "investigation-synthesis-draft-v3",
+    "standalone": "SupportRecommendation"
+  },
+  "schema_sha256": {
+    "planner": "d72121f43ada067ed9ae9ec5d77d28bb890e2c4da8b14b8817550a0178cef69f",
+    "synthesis": "6eb9a1f208f2423bed3d79cafde1c771df03342bb732c3bd525a56bd740a33bd"
+  },
+  "models": {
+    "classification": "gpt-4.1-mini-2025-04-14",
+    "embedding": "text-embedding-3-small",
+    "planner": "gpt-4.1-mini-2025-04-14",
+    "synthesis": "gpt-4.1-mini-2025-04-14",
+    "standalone": "gpt-4.1-mini-2025-04-14"
+  },
+  "generation": {
+    "classification": {
+      "max_output_tokens": 500,
+      "temperature": "omitted",
+      "store": false
+    },
+    "planner": {
+      "max_output_tokens": 700,
+      "temperature": 0,
+      "store": false
+    },
+    "synthesis": {
+      "max_output_tokens": 3000,
+      "temperature": 0,
+      "store": false
+    },
+    "standalone": {
+      "max_output_tokens": 2500,
+      "temperature": 0,
+      "store": false
+    },
+    "timeout_seconds": 30,
+    "sdk_retries": 0,
+    "transport_retries": 0,
+    "endpoint": "https://api.openai.com/v1"
+  },
+  "graph_limits": {
+    "planner_decisions": 4,
+    "lookup_attempts": 4,
+    "elapsed_seconds": 120,
+    "operational_characters": 24000
+  },
+  "retrieval": {
+    "query": "Subject: {subject}\n\nDescription: {description}",
+    "top_k": 3,
+    "distance": "cosine",
+    "threshold": null,
+    "chunker_version": "headings-v1-1500-2000-overlap200",
+    "index": {
+      "chunks": 36,
+      "section_ids": [
+        "account-lockouts#lockout-returns-after-reset",
+        "account-lockouts#one-application-denies-access",
+        "account-lockouts#several-applications-reject-login",
+        "email-troubleshooting#browser-works-but-desktop-does-not-sync",
+        "email-troubleshooting#shared-mailbox-permissions",
+        "email-troubleshooting#webmail-and-client-both-reject-login",
+        "mfa-recovery#codes-rejected-on-the-same-phone",
+        "mfa-recovery#lost-phone-or-replaced-authenticator",
+        "mfa-recovery#unrequested-authentication-prompts",
+        "password-reset#forgotten-or-expired-password",
+        "password-reset#identity-verification-boundary",
+        "password-reset#update-saved-credentials",
+        "phishing-reporting#credentials-entered-on-a-suspicious-page",
+        "phishing-reporting#repeated-unexpected-mfa-prompts",
+        "phishing-reporting#report-a-suspicious-message",
+        "printer-troubleshooting#jobs-stuck-or-printer-offline",
+        "printer-troubleshooting#printer-missing-from-managed-devices",
+        "printer-troubleshooting#secure-release-does-not-recognize-badge",
+        "remote-desktop#prerequisites-and-authorization",
+        "remote-desktop#session-drops-and-poor-responsiveness",
+        "remote-desktop#target-workstation-unreachable",
+        "shared-drive-access#drive-reconnects-with-old-credentials",
+        "shared-drive-access#folder-permission-requests",
+        "shared-drive-access#share-path-not-found",
+        "software-access#application-access-request",
+        "software-access#application-crashes",
+        "software-access#approved-application-installation",
+        "software-licensing#activation-fails-after-assignment",
+        "software-licensing#license-allocation",
+        "software-licensing#transfer-or-reclaim-a-seat",
+        "vpn-access#authentication-failures",
+        "vpn-access#connected-but-resources-unavailable",
+        "vpn-access#connection-failures",
+        "wifi-connection#cannot-join-the-wireless-network",
+        "wifi-connection#connected-without-internet",
+        "wifi-connection#slow-or-intermittent-connection"
+      ],
+      "corpus_hash": "9cf025aca9693e28583bc25a21b9db5b4a188817cfdcef1a7eb87a0ec6f2aa49",
+      "embedding": {
+        "provider": "openai",
+        "model": "text-embedding-3-small",
+        "dimensions": 1536
+      }
+    }
+  },
+  "database_snapshot": {
+    "ops.employees": {
+      "rows": 10,
+      "sha256": "8ddd191ae2605c3de549aa5eb4616abeeb2ebc78c15c492c5f2a49893c602beb",
+      "matches_frozen_inputs": true
+    },
+    "ops.accounts": {
+      "rows": 9,
+      "sha256": "2fe63c3cd6c9d8f684eec177fecf987470ec4890794d9d25e01da7c7fb5637d4",
+      "matches_frozen_inputs": true
+    },
+    "ops.devices": {
+      "rows": 12,
+      "sha256": "fbe64dad2848f60f2c24e3468ebd60131fdce50a3af062a78829cf22f741ad8b",
+      "matches_frozen_inputs": true
+    },
+    "ops.software_products": {
+      "rows": 5,
+      "sha256": "3bfab85b695cef9f50bc2a1f8498ab72f5b2840ff4fdfad4c503dce89b6d4096",
+      "matches_frozen_inputs": true
+    },
+    "ops.software_entitlements": {
+      "rows": 12,
+      "sha256": "fd2a4bfeb1743e28c3d3fd71d6aef6450c9147a4a24206a18a0cb29ea5180650",
+      "matches_frozen_inputs": true
+    },
+    "ops.services": {
+      "rows": 6,
+      "sha256": "545c4d663ef1a67300f3fcef23123387b53fe044698a83372cc7e3eb54350ea0",
+      "matches_frozen_inputs": true
+    },
+    "ops.service_incidents": {
+      "rows": 5,
+      "sha256": "a27382606f9e3107f876aa479ab5c2e782ae348518f0844480f09683dd2a0120",
+      "matches_frozen_inputs": true
+    },
+    "ops.support_tickets": {
+      "rows": 20,
+      "sha256": "833e2383b05db51756803487ba18699004e0ab9c8ced9151c3a1ba0f55f038af",
+      "matches_frozen_inputs": true
+    },
+    "public.kb_chunks": {
+      "rows": 36,
+      "sha256": "55e24635f534c778b2667143a58ec09f7ad62ac90f3cff15873de13fb6b0b8ea",
+      "matches_frozen_inputs": true
+    }
+  },
+  "database_provenance": {
+    "source": "reports/phase5b/future-004/paired.json",
+    "source_sha256": "14d676b272e77e54d997dfd7956073cc43944268ecbc2bd54d96e7769f8713d6",
+    "latest_verification": "Phase 5C.4, 2026-10-31; reused, no new database query at preparation",
+    "full_database_snapshot_sha256": "8113e3a4af5a02090a5ef2cb4b33ef95e04ecc3a5efc44191f471366650941f4"
+  },
+  "input_file_sha256": {
+    "evaluation/investigation_e2e_manifest.json": "6c1ccf66181f9f51e9b9d5e85fdcb7ad7325a4e9ea62901ece0c8d7f16d8beac",
+    "evaluation/investigation_e2e.jsonl": "ff6c5debedb882a563a260dbbfaaca97e509aafff5f3f0dceff6b8a7f23da447",
+    "evaluation/phase5b_baseline_manifest.json": "17a8036a71752fddc64ab908de4c020f27813624640e10d2804cfbbc0ec0f604"
+  },
+  "environment": {
+    "python": "3.12.7",
+    "packages": {
+      "openai": "2.54.0",
+      "httpx": "0.28.1",
+      "pydantic": "2.13.5",
+      "langgraph": "1.2.16",
+      "psycopg": "3.3.6",
+      "pgvector": "0.5.1"
+    }
+  },
+  "attempts": [
+    {
+      "attempt_id": "01-vpn-future-condition",
+      "scenario": "vpn-future-condition"
+    },
+    {
+      "attempt_id": "02-vpn-confirmed",
+      "scenario": "vpn-confirmed"
+    },
+    {
+      "attempt_id": "03-irrelevant-incident",
+      "scenario": "irrelevant-incident"
+    },
+    {
+      "attempt_id": "04-unsupported-procedure",
+      "scenario": "unsupported-procedure"
+    },
+    {
+      "attempt_id": "05-vpn-future-condition",
+      "scenario": "vpn-future-condition"
+    },
+    {
+      "attempt_id": "06-vpn-confirmed",
+      "scenario": "vpn-confirmed"
+    },
+    {
+      "attempt_id": "07-irrelevant-incident",
+      "scenario": "irrelevant-incident"
+    },
+    {
+      "attempt_id": "08-unsupported-procedure",
+      "scenario": "unsupported-procedure"
+    }
+  ],
+  "budget": {
+    "max_requests": 64,
+    "max_tokens": 400000,
+    "max_usd": "0.50",
+    "input_overhead_reserve": 4096
+  },
+  "pricing_verified_date": "2026-10-31",
+  "pricing_usd_per_million": {
+    "gpt-4.1-mini-2025-04-14": {
+      "input": "0.40",
+      "cached_input": "0.10",
+      "output": "1.60"
+    },
+    "text-embedding-3-small": {
+      "input": "0.02",
+      "output": "0"
+    }
+  },
+  "pricing_sources": [
+    "https://developers.openai.com/api/docs/models/gpt-4.1-mini",
+    "https://developers.openai.com/api/docs/models/text-embedding-3-small"
+  ],
+  "budget_limitations": "Hard admission ceilings on accounted usage plus conservative reservations, not a provider billing guarantee. Unknown usage retains reservation and stops. Taxes/other project traffic excluded; cache discounts ignored.",
+  "manual_worksheet_version": "investigation-manual-review-v2",
+  "preparation_source_sha256": {
+    "evaluation/live_investigation.py": "838f2a372479dfac9493f42243cc46878b97a652579845ddc00cb34b7976a94e",
+    "evaluation/live_telemetry.py": "4e28b03dccdbdbf8101c3b3a1b49fa35b7485504a4695c2f53e5be02842623cf",
+    "evaluation/synthesis_diagnostics.py": "0811031367e5fbb780ba74b7b246b012ef69ca446721fb3c74bfb6fadff915fc",
+    "evaluation/investigation_e2e.py": "2a39a1df6e132f16fa1dbf9810aabbc8fc53a0a8c1edf388701ffd931c430e1b",
+    "evaluation/recommendation.py": "56a8d50246f4af3a167dce8423d102223635fc6379a848ff54a4bca2e3c3b1e2",
+    "evaluation/phase5c_pilot.py": "5031f50d4ff1888a5bb6ac91731d6b3cc34720f21474d3062c3a3f5704da45d5"
+  }
+}

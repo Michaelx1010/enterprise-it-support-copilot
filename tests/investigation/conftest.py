@@ -120,15 +120,17 @@ def as_synthesis_draft():
     """Author current SDK mocks from legacy fixtures; never adapt production outputs.
 
     A placeholder trigger claim preserves old mechanical/negative-control cases;
-    it is NOT a semantic endorsement. V3-specific cases author their own wire fields.
+    it is NOT a semantic endorsement. Historical wire fixtures remain unchanged.
     """
-    def draft(report, *, version=3):
+    def draft(report, *, version=4):
         value = deepcopy(report)
-        value.pop('escalation_required')
+        value.pop('escalation_required', None)
+        if version >= 4:
+            value.pop('status')
         value['schema_version'] = f'investigation-synthesis-draft-v{version}'
         if version >= 2:
             value.setdefault('conditional_guidance', [])
-        if version == 3:
+        if version >= 3:
             reason = value.get('escalation_reason') or {}
             policy = [r for r in reason.get('references', []) if r['kind'] == 'kb_chunk']
             value.setdefault('trigger_basis', {

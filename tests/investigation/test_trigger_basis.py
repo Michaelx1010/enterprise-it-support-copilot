@@ -17,7 +17,7 @@ from app.investigation.graph import run_investigation
 from app.investigation.schemas import InvestigationResult, InvestigationSynthesis, validate_synthesis_references
 from app.investigation.scripted import ScriptedPlanner
 from app.investigation.synthesis_draft import (
-    InvestigationSynthesisDraftV1, InvestigationSynthesisDraftV2, InvestigationSynthesisDraftV3,
+    InvestigationSynthesisDraftV1, InvestigationSynthesisDraftV2, InvestigationSynthesisDraftV3, InvestigationSynthesisDraftV4,
 )
 from app.providers.openai_synthesis import OpenAISynthesis
 from app.providers.synthesis import SynthesisError
@@ -31,13 +31,13 @@ CASES = load_cases(Path('evaluation/investigation_trigger_basis.jsonl'))
 
 
 @pytest.mark.parametrize('case', CASES, ids=lambda c: c.id)
-def test_v3_sdk_and_explicit_draft_replay_agree(case, planner_client, planner_response):
+def test_current_sdk_and_explicit_v3_replay_agree(case, as_synthesis_draft, planner_client, planner_response):
     original = case.model_dump_json()
     def handler(request):
         body = json.loads(request.content)
-        assert body['text']['format']['name'] == 'InvestigationSynthesisDraftV3'
+        assert body['text']['format']['name'] == 'InvestigationSynthesisDraftV4'
         assert 'review_notes' not in body['input'][1]['content']
-        return httpx.Response(200, json=planner_response(raw_text=json.dumps(case.candidate)))
+        return httpx.Response(200, json=planner_response(raw_text=json.dumps(as_synthesis_draft(case.candidate))))
     meter = MeteredTransport(httpx.MockTransport(handler))
     observed = ObservedSynthesis(OpenAISynthesis(planner_client(meter.handle_request)))
     result = evaluate(case, observed)
@@ -240,7 +240,7 @@ def test_trigger_failures_preserve_graph_evidence_and_attempts(inv_request, inv_
     # Outer canonical loading independently rejects evidence from not_found observations.
     if failure == 'not_found':
         raw = result.model_dump()
-        raw.update(synthesis_status='completed', recommendation=InvestigationSynthesisDraftV3.model_validate(candidate).to_canonical().model_dump())
+        raw.update(synthesis_status='completed', recommendation=InvestigationSynthesisDraftV4.model_validate(candidate).to_canonical().model_dump())
         with pytest.raises(ValidationError, match='invalid_citation'): InvestigationResult.model_validate(raw)
 
 
@@ -251,10 +251,10 @@ def test_new_observation_basis_fails_closed_without_successful_id_set():
     validate_synthesis_references(report, set(CASES[-1].kb), {'lookup-1'}, trigger_lookup_ids={'lookup-1'})
 
 
-def test_mutated_v3_sdk_object_is_revalidated():
+def test_mutated_v4_sdk_object_is_revalidated(as_synthesis_draft):
     from types import SimpleNamespace
 
-    parsed = InvestigationSynthesisDraftV3.model_validate(CASES[0].candidate)
+    parsed = InvestigationSynthesisDraftV4.model_validate(as_synthesis_draft(CASES[0].candidate))
     parsed.trigger_basis = None
     client = Mock(); client.with_options.return_value = client
     client.responses.parse.return_value = SimpleNamespace(status='completed', output_parsed=parsed,
@@ -265,17 +265,17 @@ def test_mutated_v3_sdk_object_is_revalidated():
     assert observed.events[-1]['stage'] == 'provider_revalidation'
 
 
-def test_duplicate_operational_trigger_references_reject():
-    candidate = deepcopy(CASES[-1].candidate)
+def test_duplicate_operational_trigger_references_reject(as_synthesis_draft):
+    candidate = as_synthesis_draft(CASES[-1].candidate)
     candidate['trigger_basis']['factual_references'] *= 2
     with pytest.raises(ValidationError) as caught:
-        InvestigationSynthesisDraftV3.model_validate(candidate)
+        InvestigationSynthesisDraftV4.model_validate(candidate)
     assert error_details(caught.value)['errors'][0]['type'] == 'value_error'
 
 
 @pytest.mark.parametrize('current', [False, True])
-def test_trigger_mismatch_has_identifiable_redacted_sdk_diagnostics(current, planner_client, planner_response):
-    candidate = deepcopy(CASES[0].candidate)
+def test_trigger_mismatch_has_identifiable_redacted_sdk_diagnostics(current, planner_client, planner_response, as_synthesis_draft):
+    candidate = as_synthesis_draft(CASES[0].candidate)
     if current:
         candidate['trigger_basis'] = None
     else:
@@ -293,8 +293,10 @@ def test_trigger_mismatch_has_identifiable_redacted_sdk_diagnostics(current, pla
         {'type': 'escalation_trigger_mismatch', 'loc': [], 'location_truncated': False}]
     assert observed.events[0]['stage'] == 'sdk_parse'
     assert 'PRIVATE' not in json.dumps(observed.events)
+    class CurrentEnvelope(BaseModel):
+        report: InvestigationSynthesisDraftV4
     with pytest.raises(ValidationError) as nested:
-        TriggerEnvelope.model_validate({'report': candidate})
+        CurrentEnvelope.model_validate({'report': candidate})
     assert error_details(nested.value)['errors'][0]['loc'] == ['<redacted>']
 
 

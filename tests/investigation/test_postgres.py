@@ -390,7 +390,7 @@ def test_live_pair_reuses_real_retrieval_and_readonly_lookups(investigation_db, 
         schema = raw['text']['format']['name']
         if schema == 'PlannerResponseV2':
             body = planner_response(next(choices))
-        elif schema == 'InvestigationSynthesisDraftV3':
+        elif schema == 'InvestigationSynthesisDraftV4':
             evidence = payload['untrusted_evidence']
             actual_kb_ids.extend(e['reference']['chunk_id'] for e in evidence['kb_procedures'])
             assert evidence['operational_observations'][0]['observation']['result']['account']['observed_at']

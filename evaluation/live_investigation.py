@@ -247,7 +247,7 @@ def write_artifacts(directory: Path, report: dict) -> None:
 
 
 def run_paid(cases: list[Case], models: dict, *, store, db, directory: Path, checked: dict,
-             allow_paid: bool = False) -> int:
+             allow_paid: bool = False, meter: MeteredTransport | None = None) -> int:
     if not allow_paid or not checked['database_checked']:
         raise ValueError('Explicit paid opt-in and database preflight required.')
     report = {'mode': 'live_paired_evaluation',
@@ -256,7 +256,7 @@ def run_paid(cases: list[Case], models: dict, *, store, db, directory: Path, che
               'cases': [], 'api_calls': [], 'errors': [], 'database_unchanged': None,
               **source_metadata()}
     write_artifacts(directory, report)  # Verify writable artifacts before any API request.
-    meter = openai_transport()
+    meter = meter if meter is not None else openai_transport()
     report['api_calls'] = meter.calls
     try:
         # Credentials are read by the SDK, never inspected or included in artifacts.

@@ -27,13 +27,13 @@ CASES = load_cases(Path('evaluation/investigation_synthesis_usefulness.jsonl'))
 
 
 @pytest.mark.parametrize('case', CASES, ids=lambda c: c.id)
-def test_real_sdk_and_replay_preserve_authored_semantics_without_repair(case, planner_client, planner_response):
+def test_real_sdk_and_replay_preserve_authored_semantics_without_repair(case, planner_client, planner_response, as_synthesis_draft):
     calls = []
     def handler(request):
         body = json.loads(request.content)
         calls.append(body)
         assert body['input'][0]['content'] == INSTRUCTIONS
-        assert body['text']['format']['name'] == 'InvestigationSynthesisDraftV3'
+        assert body['text']['format']['name'] == 'InvestigationSynthesisDraftV4'
         assert body['model'] == DEFAULT_MODEL and body['max_output_tokens'] == MAX_OUTPUT_TOKENS == 3000
         assert body['temperature'] == 0 and body['store'] is False and 'tools' not in body
         payload = json.loads(body['input'][1]['content'])
@@ -42,7 +42,7 @@ def test_real_sdk_and_replay_preserve_authored_semantics_without_repair(case, pl
         assert payload['untrusted_evidence']['operational_observations'] == case.observations
         assert case.review_notes not in json.dumps(payload)
         assert not {'manual_verdict', 'expected_status', 'expected_escalation'} & payload.keys()
-        return httpx.Response(200, json=planner_response(raw_text=json.dumps(case.candidate)))
+        return httpx.Response(200, json=planner_response(raw_text=json.dumps(as_synthesis_draft(case.candidate))))
     before = deepcopy(case.candidate)
     actual = evaluate(case, OpenAISynthesis(planner_client(handler)))
     replay = evaluate(case, ReplayProvider(case.candidate, draft_v3=True))
@@ -91,10 +91,10 @@ def test_sources_are_existing_kb_text_and_counterfactual_live_state_is_explicit(
     ('missing_current_basis', 'invalid_output'), ('summary_over_limit', 'invalid_output'),
 ])
 def test_semantic_prompt_changes_leave_rejections_and_no_retry_intact(
-        mutation, expected, planner_client, planner_response):
+        mutation, expected, planner_client, planner_response, as_synthesis_draft):
     case_id = 'completed-reconnect-positive' if mutation == 'missing_current_basis' else 'version-inventory-positive'
     case = next(c for c in CASES if c.id == case_id).model_copy(deep=True)
-    candidate = case.candidate
+    candidate = as_synthesis_draft(case.candidate)
     if mutation == 'unknown_kb': candidate['steps'][0]['references'][0]['chunk_id'] = 'PRIVATE'
     elif mutation == 'unknown_observation': candidate['findings'][0]['references'][0]['lookup_id'] = 'PRIVATE'
     elif mutation == 'no_step_kb': candidate['steps'][0]['references'] = [{'kind': 'ticket'}]
@@ -113,13 +113,13 @@ def test_semantic_prompt_changes_leave_rejections_and_no_retry_intact(
 @pytest.mark.parametrize('case_id', ['completed-reconnect-positive', 'first-reconnect-positive', 'password-unconfirmed-positive'])
 @pytest.mark.parametrize('failure', [False, True])
 def test_full_graph_uses_v6_once_and_preserves_context_on_failure(
-        case_id, failure, inv_dependencies, planner_client, planner_response):
+        case_id, failure, inv_dependencies, planner_client, planner_response, as_synthesis_draft):
     case = next(c for c in CASES if c.id == case_id)
     chunks = {c.chunk_id: c for c in load_chunks(Path('knowledge_base'))}
     rows = [SearchResult(chunk=chunks[key], distance=i / 10) for i, key in enumerate(case.kb)]
     request = InvestigationRequest(ticket={'subject': 'Fictional support investigation', 'description': case.ticket}, employee_id='EMP-001')
     spec = inv_dependencies.embedder.spec
-    candidate = deepcopy(case.candidate)
+    candidate = as_synthesis_draft(case.candidate)
     candidate['uncertainties'].append({'text': 'Operational evidence consists of recorded snapshots, not verified live state.',
                                         'references': [{'kind': 'investigation_context'}]})
     calls = []
@@ -127,7 +127,7 @@ def test_full_graph_uses_v6_once_and_preserves_context_on_failure(
         body = json.loads(api_request.content)
         calls.append(body)
         payload = json.loads(body['input'][1]['content'])
-        assert payload['prompt_version'] == PROMPT_VERSION == 'investigation-synthesis-v6'
+        assert payload['prompt_version'] == PROMPT_VERSION == 'investigation-synthesis-v7'
         assert payload['untrusted_evidence']['ticket'] == request.ticket.model_dump()
         assert len(payload['untrusted_evidence']['operational_observations']) == 1
         assert payload['investigation_context']['live_verified'] is False
@@ -172,6 +172,6 @@ def test_manual_worksheet_additions_are_pending_and_do_not_mutate_reports(agent)
 
 def test_live_metadata_versions_only_current_prompt_and_keeps_schema_identity():
     metadata = source_metadata()
-    assert 'investigation-synthesis-v6' in json.dumps(metadata)
+    assert 'investigation-synthesis-v7' in json.dumps(metadata)
     assert 'investigation-planner-v4' in json.dumps(metadata)
     assert InvestigationSynthesisDraftV3.model_fields['schema_version'].annotation.__args__ == ('investigation-synthesis-draft-v3',)

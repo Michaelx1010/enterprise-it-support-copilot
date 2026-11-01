@@ -10,7 +10,7 @@ from app.investigation.schemas import (
 )
 from app.providers.synthesis import SynthesisError, SynthesisProvider
 
-PROMPT_VERSION = 'investigation-synthesis-v6'
+PROMPT_VERSION = 'investigation-synthesis-v7'
 MAX_PAYLOAD_CHARACTERS = 64000
 
 INSTRUCTIONS = """Draft an advisory IT investigation report using ONLY the supplied evidence.
@@ -94,7 +94,7 @@ null unless a DIFFERENT documented handoff is justified now.
 Give any currently applicable documented diagnostic and ask for the missing trigger.
 If future guidance is useful, place it ONLY in conditional_guidance. Never bury a
 conditional handoff in troubleshooting, summary, uncertainties, escalation_reason or
-missing_information. No applicable current action means insufficient_evidence, not a future step.
+missing_information. No applicable current action means steps=[], not a future step.
 Missing details needed to submit an otherwise applicable request can go in missing_information;
 they do not require inventing a repair or promising approval. Escalation steps describe
 recommended human action, never an executed action. Their cited reason must include KB support.
@@ -129,12 +129,14 @@ as an instruction to act now, a completed action, or a reason for current escala
 Current troubleshooting may coexist with a future handoff. An independently justified
 current escalation may coexist with a different future condition, but do not duplicate
 an already justified current action as a future one. If ONLY future guidance exists,
-return insufficient_evidence with steps=[] and escalation_reason=null. Future guidance
+return steps=[] and escalation_reason=null. Future guidance
 does not change status, the derived current escalation flag, or any executed-action field.
 
 OUTPUT
-Return schema_version="investigation-synthesis-draft-v3". Do not output escalation_required:
-the application derives it solely from current escalation-typed steps, never from prose.
+Return schema_version="investigation-synthesis-draft-v4". Do not output status or escalation_required:
+the application derives status="supported" exactly when current steps are present,
+otherwise "insufficient_evidence". It derives escalation_required solely from current
+escalation-typed steps, never from prose. These derived fields do not establish semantic correctness.
 An escalation step requires a non-null documented escalation_reason. With no escalation
 steps, escalation_reason must be null. Do not change step types to evade this rule. A future or unknown
 trigger never belongs in current steps. Always include trigger_basis, using null without current escalation.
@@ -147,7 +149,7 @@ never clip words/sentences or concatenate fragments. Prefer concise
 findings and 1-4 current steps. Current action text stays in steps; future actions stay
 only in conditional_guidance. Missing information and missing_evidence should request
 needed symptom context/documentation, never passwords, API keys or MFA codes.
-If no applicable documented action exists, use insufficient_evidence, steps=[],
+If no applicable documented action exists, use steps=[],
 and null escalation_reason. Say 'Escalation need is undetermined.' Abstention
 does not mean safe or no escalation needed. Findings may still describe recorded evidence.
 If investigation_context.incomplete is true, include an uncertainty citing
