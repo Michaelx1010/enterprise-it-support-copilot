@@ -127,7 +127,7 @@ def test_full_graph_uses_v6_once_and_preserves_context_on_failure(
         body = json.loads(api_request.content)
         calls.append(body)
         payload = json.loads(body['input'][1]['content'])
-        assert payload['prompt_version'] == PROMPT_VERSION == 'investigation-synthesis-v7'
+        assert payload['prompt_version'] == PROMPT_VERSION == 'investigation-synthesis-v8'
         assert payload['untrusted_evidence']['ticket'] == request.ticket.model_dump()
         assert len(payload['untrusted_evidence']['operational_observations']) == 1
         assert payload['investigation_context']['live_verified'] is False
@@ -172,6 +172,6 @@ def test_manual_worksheet_additions_are_pending_and_do_not_mutate_reports(agent)
 
 def test_live_metadata_versions_only_current_prompt_and_keeps_schema_identity():
     metadata = source_metadata()
-    assert 'investigation-synthesis-v7' in json.dumps(metadata)
-    assert 'investigation-planner-v4' in json.dumps(metadata)
+    assert 'investigation-synthesis-v8' in json.dumps(metadata)
+    assert 'investigation-planner-v5' in json.dumps(metadata)
     assert InvestigationSynthesisDraftV3.model_fields['schema_version'].annotation.__args__ == ('investigation-synthesis-draft-v3',)

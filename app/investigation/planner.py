@@ -117,7 +117,7 @@ class PlannerResponseV2(PlannerResponse):
     decision: AccountLookup | DevicesLookup | DeviceLookup | EntitlementLookup | TicketsLookup | IncidentsLookup | FinishDecision | ClarifyDecision | DocumentationGapDecision
 
 
-PROMPT_VERSION = 'investigation-planner-v4'
+PROMPT_VERSION = 'investigation-planner-v5'
 INSTRUCTIONS = """Select exactly one next decision in a bounded, read-only IT investigation.
 Return schema_version="investigation-planner-response-v2" and one structured decision.
 Do not generate a recommendation,
@@ -172,14 +172,17 @@ or unrelated. Do not spend the last decision on a lookup. Keep the existing scop
 deduplication and budget rules even when a re-read might otherwise be useful.
 
 TERMINAL DECISIONS: OPERATIONAL GAPS VERSUS DOCUMENTATION GAPS
-Use insufficient_evidence with gap_kind="documentation" when the supplied KB evidence
-does not establish an applicable procedure for the requested action. Retrieved text
-can be irrelevant even when its IDs are valid. This judgment concerns only the
-supplied evidence; never conclude that no procedure exists anywhere in the organization.
-The application will produce a deterministic no-action abstention for human review.
-Operational tools return recorded facts, not new policy: unrelated identifiers or
-lookups cannot supply an undocumented procedure. Do not clarify employee_id,
-software_ids, service_ids or ticket_details merely to compensate for that gap.
+Identify the blocker from the requested action, not its classification label.
+Before asking for a field, identify the relevant permitted lookup or documented
+branch its answer would enable. If it would only unlock unrelated lookups, use
+insufficient_evidence with gap_kind="documentation" when the supplied KB lacks
+an applicable procedure. Operational facts cannot supply missing policy. This
+concerns only supplied evidence, never all procedures in the organization; the
+application produces a deterministic no-action abstention for human review.
+Example: business-record restoration with only sign-in recovery documentation is
+a documentation gap, not a reason to request employee_id. In contrast, an explicit
+account-state investigation can require employee_id; an entitlement check can
+require software_ids. Missing IDs alone decide neither outcome.
 
 Preserve clarify when genuinely missing scope or symptom information would enable
 a relevant permitted lookup or distinguish applicable documented branches. Missing

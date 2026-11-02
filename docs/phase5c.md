@@ -1332,3 +1332,45 @@ instructions applicable to V4. Protocol/controller hashes still match the archiv
 values. Ignored pilot outputs, forensic reviews, local environments and credentials
 are excluded from the combined commit. No freeze, model setting or safety boundary
 was changed, and no new paid evaluation is authorized.
+
+## Focused semantic guidance improvement (2026-11-02)
+
+Starting commit: `5d725e27842e4ac81424b37c313fa8ebd4cde06d`.
+Only two production prompt constants and their version identifiers change:
+
+- Planner `investigation-planner-v5` asks whether a missing field would enable
+  relevant work before requesting it. Business-record restoration with only
+  sign-in documentation illustrates a documentation gap; account and entitlement
+  investigations retain valid identifier clarification.
+- Synthesis `investigation-synthesis-v8` recognizes explicitly reported completed
+  checks and persistent failure as possible current trigger evidence, with ticket
+  attribution. Missing handoff details do not defer an established trigger unless
+  the KB makes them prerequisites. Future guidance must have documented support
+  for both its condition and action, including its destination team; an operational
+  service-owner record cannot authorize a handoff.
+
+The revisions add 24 planner words and 39 synthesis words (whitespace counts).
+The four existing synthesis teaching examples remain unchanged. Instruction
+SHA-256 values are:
+
+- Planner V5: `e7fb78506334cf0f8f6f112361f450b81a1725f48be827d7c16a7994e495578d`
+- Synthesis V8: `4021f7c546e57c51af45c577af546c691bed8ae6e07da16d29ab28cce808dc97`
+
+Planner V2, synthesis Draft V4, canonical schemas, providers, graph, validators,
+tools, budgets, model settings and standalone RAG are unchanged. No deterministic
+router, retry, repair mechanism or new evaluation infrastructure was introduced.
+Historical pilot artifacts and the frozen controller/protocol remain unchanged.
+
+Nine authored mocked cases cover six intended outcomes and three deliberately
+incorrect semantic controls. Valid account/software clarification and documented
+future escalation remain possible. The incorrect controls demonstrate that valid
+references and a correct current-escalation flag cannot prove applicability or
+authorize a future handoff. Manual semantic grades remain pending.
+
+Verification: **184 targeted tests passed**, including all nine new cases and
+21 schema parity checks. Initially 181 passed; three existing temporary-directory
+tests encountered sandbox filesystem restrictions and passed when only those three
+were rerun with the required access. The prior **1,057-test full-suite pass** is
+reused; no database queries or repeated full-suite run were needed for prompt-only
+production changes. Offline mocks verify mechanics and prompt delivery, not live
+semantic improvement. No paid calls, commits or pushes were made at this checkpoint.

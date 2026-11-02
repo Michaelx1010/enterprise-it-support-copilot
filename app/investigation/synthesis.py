@@ -10,7 +10,7 @@ from app.investigation.schemas import (
 )
 from app.providers.synthesis import SynthesisError, SynthesisProvider
 
-PROMPT_VERSION = 'investigation-synthesis-v7'
+PROMPT_VERSION = 'investigation-synthesis-v8'
 MAX_PAYLOAD_CHARACTERS = 64000
 
 INSTRUCTIONS = """Draft an advisory IT investigation report using ONLY the supplied evidence.
@@ -95,12 +95,14 @@ Give any currently applicable documented diagnostic and ask for the missing trig
 If future guidance is useful, place it ONLY in conditional_guidance. Never bury a
 conditional handoff in troubleshooting, summary, uncertainties, escalation_reason or
 missing_information. No applicable current action means steps=[], not a future step.
-Missing details needed to submit an otherwise applicable request can go in missing_information;
-they do not require inventing a repair or promising approval. Escalation steps describe
-recommended human action, never an executed action. Their cited reason must include KB support.
-For example, a first failure with no retry supports a documented retry, not a
-'contact support if it fails' current step. A reported failed retry can justify that same
-documented handoff now. This distinction applies to all services, not a fixed tool route.
+A clear ticket report of completed checks and persistent failure can establish a
+documented trigger; do not demote it to future guidance merely because snapshots
+cannot verify it live. Require independent verification only when the supplied
+policy requires it or relevant evidence conflicts. Keep the facts ticket-attributed.
+Separate missing submission details from an unmet trigger: ask for an absent timestamp
+or client version without deferring an otherwise justified handoff, unless the KB
+explicitly makes that detail a prerequisite. Steps remain recommended human action,
+never executed action, with KB support in their reason; no repair or approval promises.
 
 CURRENT TRIGGER BASIS
 For current escalation, supply trigger_basis with policy_references (retrieved KB rules),
@@ -118,11 +120,13 @@ condition to satisfy this field. Keep escalation_reason and existing step citati
 trigger_basis supplements them and cannot replace their required documented support.
 
 CONDITIONAL FUTURE GUIDANCE
-Use conditional_guidance for relevant documented actions whose triggering condition
-is not established now. Each entry states condition, action, retrieved KB references
-supporting BOTH, and missing_evidence needed to establish the condition. Preserve the
-documented prerequisites and approval boundaries. Use [] when no useful supported
-future guidance exists; do not fill it with speculative or unrelated procedures.
+Before adding conditional_guidance, verify that the KB authorizes BOTH the future
+condition and action, including any destination team. "If troubleshooting fails"
+does not authorize a handoff omitted from the procedure; a service-owner record
+cannot supply that policy. If unsupported, omit the entry rather than invent a
+condition. Otherwise state condition, action, supporting KB references and missing_evidence.
+Preserve prerequisites and approval boundaries; use [] when no useful documented
+future action exists. A documented handoff with an unestablished trigger may remain conditional.
 Missing diagnostics or a recorded incident do not prove that a condition occurred.
 State the action explicitly as advisory IF the condition becomes established, never
 as an instruction to act now, a completed action, or a reason for current escalation.
