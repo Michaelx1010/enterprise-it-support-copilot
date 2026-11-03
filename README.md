@@ -1,276 +1,174 @@
 # Enterprise IT Support Copilot
 
-## Try the local web demo
+A local AI Engineer portfolio project that turns an IT support ticket into a
+structured, evidence-grounded investigation report. It combines ticket
+classification, retrieval over a fictional internal knowledge base, and a bounded
+LangGraph planner with six read-only operational tools. The Streamlit demo makes
+the recommendations, sources, uncertainty and investigation trace inspectable.
+All outputs are advisory; the application never changes accounts or executes handoffs.
 
-From the repository root in **Windows CMD** (Python 3.11+ and `uv` installed):
+![Actual Streamlit demo showing a fictional VPN ticket, classification, cited recommendation and human-review requirement](docs/assets/demo-overview.png)
+
+*Actual application in no-cost scripted mode. Responses are authored examples,
+not fresh live-model inference.*
+
+[Run the demo](#quick-start-no-cost) · [Architecture](#architecture) ·
+[Evaluation](#evaluation-and-verification) · [Technical documentation](docs/README.md)
+
+## What it does
+
+- Classifies ticket subject and description into category, priority and summary.
+- Retrieves Markdown KB sections with source paths, headings and chunk IDs.
+- Plans bounded lookups of account, device, entitlement, ticket and incident records.
+- Separates documented procedures, ticket-reported facts and recorded operational
+  observations in a structured report with validated evidence references.
+- Distinguishes current actions from conditional future guidance, and supports
+  clarification, documentation-gap abstention and partial results.
+
+| Capability | Standalone RAG | Investigation workflow |
+| --- | --- | --- |
+| Ticket + retrieved KB procedures | Yes | Yes |
+| Operational context | None | Scoped, read-only lookups chosen by the planner |
+| Output | Cited support recommendation | Recommendation, typed evidence and ordered lookup trace |
+
+Both paths remain available independently. Added operational context and planning
+do not establish better answer quality; the measured comparison is reported below.
+
+## Architecture
+
+```mermaid
+flowchart TB
+    UI["Streamlit: ticket + optional scoped identifiers"] --> MODE{"Execution mode"}
+    MODE -->|No cost| FIX["Scripted providers and fictional fixtures"]
+    MODE -->|Explicit paid opt-in| LIVE["OpenAI providers and restricted DB readers"]
+    FIX --> C
+    LIVE --> C
+
+    subgraph GRAPH["LangGraph workflow"]
+        C["Ticket classification"] --> R["KB retrieval<br/>Live: OpenAI embeddings + pgvector"]
+        R --> P["Planner: choose next lookup or finish"]
+        P -->|Lookup| T["Guarded read-only tools<br/>Live: restricted PostgreSQL ops queries"]
+        T -->|Recorded observations| P
+        P -->|Finish| S["Grounded synthesis<br/>Schema and citation validation"]
+        P -->|Clarification or documentation gap| A["Deterministic no-action response"]
+        S --> OUT["Structured report + evidence + trace<br/>Human review required"]
+        A --> OUT
+    end
+
+    classDef entry fill:#e6f3ef,stroke:#176b62,color:#172b3a;
+    classDef data fill:#eef3fa,stroke:#6687a6,color:#172b3a;
+    class UI,OUT entry;
+    class R,T,FIX data;
+    style GRAPH fill:#f8fafc,stroke:#cbd5e1,color:#172b3a;
+```
+
+The examples use the same graph and validators with scripted providers and
+fictional snapshots. Live mode uses OpenAI query embeddings and pgvector cosine
+search (top three chunks), then permits at most four planner decisions and four
+lookup attempts by default. Failures preserve available evidence and error records.
+The [graph guide](docs/phase4.md) explains the guards and partial-result semantics.
+
+**Technology:** Python 3.11+, Pydantic, OpenAI Structured Outputs, LangGraph,
+PostgreSQL + pgvector, psycopg, Streamlit, pandas, pytest and uv.
+Provider-specific code is isolated behind small interfaces.
+
+## Quick start (no cost)
+
+Install Python 3.11+ and [uv](https://docs.astral.sh/uv/), clone this repository,
+and open a terminal in its root. In **Windows CMD**:
 
 ```cmd
 uv run --locked --extra demo python -m streamlit run streamlit_app.py
 ```
 
-Open **http://127.0.0.1:8501**, select a fictional example and click **Run
-investigation**. No API key or PostgreSQL is needed. The real graph replays authored
-responses and synthetic snapshots; this is clearly labelled, not live model output.
-Inspect current actions, conditional guidance, escalation evidence and the lookup
-sequence. [Demo setup and optional live mode](docs/demo.md).
+Open **http://127.0.0.1:8501** (or the local URL printed by Streamlit if that port
+is occupied). Select **Scripted examples**, choose a scenario and click
+**Run investigation**.
 
-An incremental AI Engineer portfolio project. Phase 1 explores a synthetic IT
-helpdesk dataset and classifies a ticket's subject and description into a validated
-`category`, `priority`, and concise `summary`.
+- **VPN: first connection failure** — current troubleshooting and conditional guidance.
+- **VPN: persistent error after retry** — documented current escalation with trigger evidence.
+- **Cafeteria: unsupported restoration request** — no-action documentation-gap response.
 
-Milestone 2A adds a fictional Markdown knowledge base, OpenAI embeddings,
-PostgreSQL/pgvector search, and retrieval evaluation. See
-[the milestone 2A guide](docs/phase2a.md) for setup, architecture, and commands.
-Milestone 2B adds structured, evidence-grounded recommendations with cited steps,
-explicit abstention, and recommendation evaluation. See
-[the milestone 2B guide](docs/phase2b.md) for commands, guarantees, and limitations.
-Phase 2B.1 refines prompting and schema descriptions, adds development/held-out
-recommendation cases, and reports escalation precision/recall separately from
-manual groundedness review. See [the reliability review](docs/phase2b1.md).
+No OpenAI API key or PostgreSQL is required. Dependency installation may require
+internet access; running the examples makes no model or database requests. Inputs
+and responses are fixed fictional examples, clearly labelled in the interface.
 
-Phase 3 adds a separate synthetic `ops` database schema and six read-only IT
-investigation tools. They expose recorded account, device, entitlement, ticket,
-and incident facts without calling an LLM. See [the Phase 3 guide](docs/phase3.md)
-for setup, restricted reader provisioning, CLI contracts, timestamps, and limits.
+<details>
+<summary>More screenshots: evidence, lookup trace and insufficient evidence</summary>
 
-Phase 4A adds a bounded LangGraph investigation workflow with scripted decisions,
-deterministic tool scope, typed evidence, and partial-result handling. It gathers
-evidence locally without a live planner or synthesis model. See
-[the Phase 4A guide](docs/phase4.md) for the graph, CLI, limits and tests.
+**Evidence and source citations**
 
-Phase 4B.1 connects an OpenAI Structured Outputs planner to the same guarded loop.
-The model selects read-only lookups using returned evidence, then finishes or
-requests clarification. See [the live planner guide](docs/phase4b1.md).
-Phase 4B.2 adds opt-in investigation synthesis: a structured advisory report citing
-KB procedures and operational observations separately, with abstention and failure
-handling. See [the synthesis guide](docs/phase4b2.md). All new model tests use mocked responses.
+![KB section text and chunk citations alongside labelled synthetic operational observations](docs/assets/demo-evidence.png)
 
-## Setup
+**Replayed read-only lookups**
 
-Requires Python 3.11 or newer. From the repository root:
+![Ordered account, device and service-incident lookups with decision budgets and no mutating actions](docs/assets/demo-tool-trace.png)
 
-```powershell
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -e ".[dev]"
-```
+**Insufficient evidence**
 
-Alternatively, with [uv](https://docs.astral.sh/uv/), use the committed lockfile:
+![Documentation-gap example with no current actions and escalation explicitly undetermined](docs/assets/demo-insufficient-evidence.png)
 
-```powershell
-uv sync --locked --extra dev
-```
+[Screenshot provenance](docs/assets/README.md)
 
-The examples below use Windows PowerShell and the virtual environment directly,
-so activating it is optional. On macOS/Linux, use `.venv/bin/python` instead.
+</details>
 
-Dependencies are Pydantic (schemas), pandas (ticket exploration), the OpenAI SDK
-(initial provider), psycopg and pgvector (KB storage), LangGraph (investigation
-workflow), and pytest (development tests). Phase 1 commands do not require a
-running database.
+## Optional live investigation
 
-## Download and inspect the data
+Live mode requires a local OpenAI API key, an ingested pgvector KB and a seeded
+fictional operational database, with separate restricted KB and operational readers.
+Configure these in ignored local environment files, enable `IT_SUPPORT_DEMO_LIVE=1`,
+and explicitly confirm paid use before submitting a ticket. Page loads and rerenders
+do not dispatch model requests.
 
-```powershell
-.\.venv\Scripts\python.exe -m app.cli download
-.\.venv\Scripts\python.exe -m app.cli inspect
-```
+Follow [the demo setup guide](docs/demo.md#optional-paid-live-workflow) for commands
+and configuration. Live submissions incur API costs and send ticket/evidence text
+to OpenAI; use fictional inputs. The demo does not implement a spending cap.
 
-The first command downloads `data/raw/tickets.csv` from a pinned Hugging Face
-revision and refuses to overwrite an existing file. The second writes
-`reports/dataset_profile.md` locally. It requires no API key and makes no model
-calls. Raw CSV files, generated reports, and rendered HTML previews are ignored
-by Git. The dataset source and checksum are recorded in the generated report.
+## Evaluation and verification
 
-To inspect another local CSV with the same required columns:
+The historical **Phase 5C.5 pilot-002** used eight paired attempts: both arms
+received the same ticket and retrieved KB evidence; only the agent used operational
+tools. These are development-pilot observations for the **old Draft V3 / planner
+prompt v4 / synthesis prompt v6 candidate**, not scores for the current version.
 
-```powershell
-.\.venv\Scripts\python.exe -m app.cli inspect --data path/to/tickets.csv --output reports/custom_profile.md
-```
+| Historical result | Agent | Standalone RAG |
+| --- | --- | --- |
+| Structurally delivered reports | 5/8, including two deterministic clarifications | 8/8 |
+| Model synthesis accepted on supported attempts | 3/6 | Not the same synthesis contract |
+| Required operational evidence coverage | 14/14 | No operational tools |
 
-The loader preserves blank cells and literal text such as `NA`; it does not drop
-rows, fill missing labels, or silently relabel tickets. Inspection reports missing
-and unknown labels. Classification requires nonblank subject and description.
+Three agent syntheses were rejected for status/step inconsistency. Preliminary
+AI-assisted review flagged two irrelevant clarifications on documentation-gap
+attempts and one missed current handoff in two confirmed-escalation attempts.
+Independent human-review worksheets remain pending. Structural acceptance and
+valid citation IDs do not establish factual correctness or usefulness.
 
-## Classify one ticket
+The current implementation uses **Draft V4, planner prompt v5 and synthesis prompt
+v8**. Status now derives from current steps, and targeted instructions address the
+observed semantic failures. **These changes have not been measured in a new live
+paired pilot.** This project makes no claim that the agent outperforms standalone RAG.
 
-Export `OPENAI_API_KEY` in your local shell. Do not commit credentials or paste
-them into source files. `.env.example` lists supported settings; this application
-does **not** automatically load `.env` files.
+Previously recorded verification: **1,057 backend tests passed**, including
+82 PostgreSQL integration tests and 21 schema parity checks; the Streamlit MVP
+recorded **17 focused tests passed in aggregate**. These results were reused for
+this documentation milestone, not rerun. See the [evaluation summary](docs/portfolio-evaluation.md)
+for provenance, denominators, manual-review criteria and limitations.
 
-```powershell
-$env:OPENAI_API_KEY = "<your API key>"
-$env:OPENAI_MODEL = "gpt-4.1-mini-2025-04-14"
-.\.venv\Scripts\python.exe -m app.cli classify --subject "VPN connection failure" --description "My VPN disconnects repeatedly and I cannot access internal tools to work."
-```
+## Limitations and next steps
 
-This command makes a paid API request. The model setting is optional and defaults
-to the snapshot shown above. Choose a model available to your account that supports
-the Responses API and Structured Outputs. No batch classification runs implicitly.
+- The KB, operational records and demo inputs are fictional. Recorded snapshots
+  are not verified present conditions, and an incident association is not causality.
+- Citation validation checks reference structure and membership, not entailment.
+  Wrong diagnoses, unsupported advice and incorrect abstentions remain possible.
+- Read-only roles, scope guards and a human-review indicator are not a complete
+  authorization or approval system. No changes, approvals or escalations are executed.
+- This is a local, single-user demo. Authentication, hosting, durable sessions and
+  multi-user operation are not implemented.
 
-Illustrative output (not a recorded live model result):
+A separately approved live comparison and manual semantic review would be needed
+to assess the revised prompts. Any broader deployment would first need its own
+authorization, privacy and operational design.
 
-```json
-{
-  "category": "Network",
-  "priority": "High",
-  "summary": "Repeated VPN disconnections prevent access to internal work tools."
-}
-```
-
-The adapter uses `client.responses.parse(text_format=TicketClassification)` to
-request a strict JSON schema and parse it with Pydantic. All three fields are
-required, category and priority have fixed allowed values, extra fields are
-rejected, and summaries must contain 1–400 characters after trimming whitespace.
-The prompt asks for a single sentence; sentence count is not enforced by a parser.
-Only subject and description are sent, along with the shared instructions and
-schema. Emails or other text embedded in those two fields remain part of the input.
-
-Refusals, incomplete or missing structured output, validation failures, and API
-failures are reported as errors, with a nonzero CLI exit status. There is no
-fabricated fallback classification or JSON-repair loop. The SDK has a 30-second
-request timeout and up to two transient-error retries. Response storage is disabled
-with `store=False`; this is not a claim of zero provider retention.
-
-## Provider boundary
-
-```text
-CLI -> classify_ticket(subject, description, provider=...)
-    -> shared instructions + validated ticket text
-    -> ClassificationProvider.generate(...)
-    -> validated TicketClassification
-```
-
-- `app/schemas.py`: provider-independent inputs and output labels.
-- `app/classification.py`: prompt construction and shared validation.
-- `app/providers/base.py`: one-method protocol and a common failure type.
-- `app/providers/openai.py`: SDK, credentials, model choice, and OpenAI errors.
-- `app/data.py`: pinned download and CSV loading.
-- `app/profiling.py`: descriptive exploration; no classification calls.
-- `app/cli.py`: command parsing and provider selection.
-
-To use Hugging Face or a local model later, implement `generate(instructions=...,
-ticket_text=...) -> TicketClassification` and inject that adapter at the CLI or
-calling code. The new adapter is responsible for translating model output into
-the shared schema or raising `ClassificationError`. The classification pipeline
-does not need to change. Those adapters are deliberately not implemented yet.
-
-## Tests
-
-```powershell
-.\.venv\Scripts\python.exe -m pytest
-```
-
-Offline tests need no API key. They cover label and summary validation,
-blank inputs, a substitute provider, CSV preservation and profiling, CLI errors,
-and the real OpenAI SDK's schema serialization and parsing via a mock HTTP
-transport. These checks establish application behavior, not live model quality
-or account/model availability. Four pgvector integration tests additionally need
-`TEST_DATABASE_URL`; see the milestone 2A guide. Phase 2B adds fake-retrieval and
-fake-provider tests for citations, escalation structure, abstention, errors,
-evaluation denominators, and CLI behavior.
-
-## Recommend grounded support actions
-
-After completing the KB setup and ingestion in the milestone 2A guide:
-
-```powershell
-uv run --env-file .env python -m app.cli recommend --subject "Unexpected MFA prompts" --description "I keep getting authenticator approvals I did not initiate."
-uv run --env-file .env python -m app.cli recommend-evaluate
-```
-
-On the prepared machine, add `--env-file .env.db` after `--env-file .env`.
-These commands make paid embedding and recommendation calls. The optional
-`OPENAI_RECOMMENDATION_MODEL` defaults to `gpt-4.1-mini-2025-04-14` independently
-of classification. No new secret or dependency is needed.
-
-The JSON response contains a recommendation plus the retrieved evidence with
-full source metadata. Every recommended step cites retrieved chunk IDs. A
-documented escalation can be a supported action even when the issue is unresolved.
-`insufficient_evidence` has no steps; its false escalation flag means no grounded
-escalation was issued, **not** that escalation is unnecessary or the issue is safe.
-Citation validation checks source membership, not whether the cited text supports
-the action. Summary groundedness and content correctness still need manual review.
-
-## Run a scripted investigation
-
-```powershell
-uv run --locked python -m app.cli investigate scripted --script examples/investigation-scripted.json
-```
-
-This offline example replays classification, query embedding, KB rankings and
-lookup fixtures through the graph. PostgreSQL mode uses real retrieval and the
-six original tools with separate restricted KB/ops credentials; see the Phase 4A
-guide. Output separates lookup attempts from `mutating_actions_executed=false`,
-preserves source metadata and reports `completed`, `partial` or `failed`.
-`human_review_required=true` is an indicator, not an implemented approval workflow.
-Recommendation generation remains unconnected in Phase 4A.
-
-For live planning, prepare the separate restricted readers and local API settings
-described in the live planner guide. This command makes paid classification,
-embedding and planner requests; it does not generate a recommendation:
-
-```powershell
-uv run --locked --env-file .env --env-file .env.ops --env-file .env.kb python -m app.cli investigate live --request examples/investigation-request.json
-```
-
-`OPENAI_PLANNER_MODEL` independently configures the planner. All automated planner
-tests use mocked API responses, including the tests against real PostgreSQL.
-
-To add a grounded advisory report, opt in to at most one additional paid request:
-
-```powershell
-uv run --locked --env-file .env --env-file .env.ops --env-file .env.kb python -m app.cli investigate live --request examples/investigation-request.json --synthesize
-```
-
-`OPENAI_SYNTHESIS_MODEL` independently configures synthesis. Summaries, findings,
-steps and escalation reasons carry typed references; every action needs KB support.
-The report preserves observations and source metadata in the outer result. Unknown
-references are rejected, but source membership does not establish claim correctness.
-Reports remain advisory and require human review. No action or escalation is executed.
-
-The small synthesis evaluation is an offline response replay with deliberate negative
-controls, not a measurement of live model quality:
-
-```powershell
-uv run --locked python -m evaluation.investigation_synthesis
-```
-
-## Controlled paired evaluation
-
-[Phase 5B](docs/phase5b.md) adds a separate opt-in live paired runner for four frozen
-Phase 5A scenarios. Both arms share the exact ticket and retrieved KB evidence;
-only the investigation arm performs operational lookups. Dry-run makes no API calls:
-
-```powershell
-uv run --locked --offline python -m evaluation.live_investigation --dry-run
-```
-
-The guide documents restricted database preflight, later paid opt-in commands,
-request bounds, paired outputs and manual claim review. Live scores remain
-separate from [Phase 5A fixture replay](docs/investigation_evaluation.md).
-
-## Dataset and limitations
-
-Source: [Console-AI/IT-helpdesk-synthetic-tickets](https://huggingface.co/datasets/Console-AI/IT-helpdesk-synthetic-tickets)
-(upstream license metadata: MIT), revision
-`165693849d955c6da4c00bc8be8e541afec0514e`.
-
-The inspected dataset has 500 synthetic tickets, 11 categories, and four priorities
-(`Low`, `Medium`, `High`, `Urgent`). Categories and priorities are imbalanced:
-Software accounts for 46.2% of tickets; Medium and High together account for 98.4%.
-No reference summaries are supplied. See the generated report for the full schema,
-distributions, missing values, duplicates, and text lengths.
-
-The category descriptions and priority rubric in the prompt are explicit project
-assumptions: the dataset does not supply a detailed labeling guide. Related issues
-can span categories, and valid structured output does not guarantee correct labels
-or factual summaries. No accuracy claim is made in Phase 1. Milestone 2A evaluates
-retrieval separately; milestone 2B keeps mechanical recommendation metrics separate
-from manual groundedness review. Phase 4B.1 tests live-planner integration with
-mocked API responses. Phase 4B.2 adds synthesis with citation validation and manual
-content-review rubrics; live synthesis quality remains unmeasured. FastAPI,
-application containerization, and a frontend remain later work in
-[`PROJECT_BRIEF.md`](PROJECT_BRIEF.md).
-
-API references: [OpenAI Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs?api-mode=responses)
-and [GPT-4.1 mini model documentation](https://developers.openai.com/api/docs/models/gpt-4.1-mini).
+Start with the [documentation map](docs/README.md), [CLI reference](docs/cli.md),
+[retrieval design](docs/phase2a.md), [read-only tools](docs/phase3.md) or
+[demo guide](docs/demo.md).

@@ -13,8 +13,9 @@ Install Python 3.11+ and `uv`, clone the repository and open CMD in its root:
 uv run --locked --extra demo python -m streamlit run streamlit_app.py
 ```
 
-The optional `demo` extra installs Streamlit (locked at 1.66.1). The server binds
-to **127.0.0.1:8501**; open that address in a browser. Stop it with **Ctrl+C**.
+The optional `demo` extra installs Streamlit (locked at 1.66.1). The server normally
+binds to **127.0.0.1:8501**; if that port is occupied, use the local URL printed by
+Streamlit. Stop it with **Ctrl+C**.
 The committed Streamlit configuration disables usage telemetry and detailed browser
 exception displays. It does not contain credentials. Existing locked backend
 package versions are retained.
