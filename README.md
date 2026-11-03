@@ -1,5 +1,19 @@
 # Enterprise IT Support Copilot
 
+## Try the local web demo
+
+From the repository root in **Windows CMD** (Python 3.11+ and `uv` installed):
+
+```cmd
+uv run --locked --extra demo python -m streamlit run streamlit_app.py
+```
+
+Open **http://127.0.0.1:8501**, select a fictional example and click **Run
+investigation**. No API key or PostgreSQL is needed. The real graph replays authored
+responses and synthetic snapshots; this is clearly labelled, not live model output.
+Inspect current actions, conditional guidance, escalation evidence and the lookup
+sequence. [Demo setup and optional live mode](docs/demo.md).
+
 An incremental AI Engineer portfolio project. Phase 1 explores a synthetic IT
 helpdesk dataset and classifies a ticket's subject and description into a validated
 `category`, `priority`, and concise `summary`.

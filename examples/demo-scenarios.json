@@ -1,0 +1,428 @@
+{
+  "provenance": "Authored scripted demonstrations, not recorded model outputs. Read-only fictional lookup snapshots copied from tracked Phase 5A vpn-confirmed fixture; no evaluation labels or expected answers are used by the live adapter. KB sections load from the tracked corpus. No historical report files are needed.",
+  "lookup_results": [
+    {
+      "tool": "get_employee_account_status",
+      "arguments": {
+        "employee_id": "EMP-001"
+      },
+      "result": {
+        "status": "ok",
+        "missing_entities": [],
+        "queried_at": "2026-10-23T08:00:00Z",
+        "data_kind": "synthetic_snapshot",
+        "live_verified": false,
+        "employee": {
+          "employee_id": "EMP-001",
+          "display_name": "Maya Chen",
+          "department": "Finance",
+          "manager_id": null,
+          "employment_status": "active",
+          "updated_at": "2026-10-16T08:00:00Z"
+        },
+        "account": {
+          "account_id": "ACC-001",
+          "employee_id": "EMP-001",
+          "account_status": "enabled",
+          "password_expired": false,
+          "mfa_status": "enrolled",
+          "locked_at": null,
+          "last_successful_login_at": "2026-10-15T07:00:00Z",
+          "observed_at": "2026-10-16T08:00:00Z",
+          "updated_at": "2026-10-16T08:00:00Z"
+        }
+      }
+    },
+    {
+      "tool": "get_employee_devices",
+      "arguments": {
+        "employee_id": "EMP-001"
+      },
+      "result": {
+        "status": "ok",
+        "missing_entities": [],
+        "queried_at": "2026-10-23T08:00:00Z",
+        "data_kind": "synthetic_snapshot",
+        "live_verified": false,
+        "employee": {
+          "employee_id": "EMP-001",
+          "display_name": "Maya Chen",
+          "department": "Finance",
+          "manager_id": null,
+          "employment_status": "active",
+          "updated_at": "2026-10-16T08:00:00Z"
+        },
+        "devices": [
+          {
+            "device_id": "DEV-001",
+            "asset_tag": "NS-0001",
+            "assigned_employee_id": "EMP-001",
+            "device_type": "laptop",
+            "model": "Northstar Demo Laptop",
+            "os_name": "Windows",
+            "os_version": "11-demo",
+            "lifecycle_status": "active",
+            "compliance_status": "compliant",
+            "vpn_client_version": "5.2-demo",
+            "last_seen_at": "2026-10-16T08:00:00Z",
+            "created_at": "2026-09-01T08:00:00Z",
+            "updated_at": "2026-10-16T08:00:00Z"
+          },
+          {
+            "device_id": "DEV-010",
+            "asset_tag": "NS-0010",
+            "assigned_employee_id": "EMP-001",
+            "device_type": "phone",
+            "model": "Northstar Demo Phone",
+            "os_name": "Mobile OS",
+            "os_version": "18-demo",
+            "lifecycle_status": "active",
+            "compliance_status": "unknown",
+            "vpn_client_version": null,
+            "last_seen_at": "2026-09-20T08:00:00Z",
+            "created_at": "2026-09-01T08:00:00Z",
+            "updated_at": "2026-10-16T08:00:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "tool": "get_active_service_incidents",
+      "arguments": {
+        "service_id": "SVC-001",
+        "limit": 5
+      },
+      "result": {
+        "status": "ok",
+        "missing_entities": [],
+        "queried_at": "2026-10-23T08:00:00Z",
+        "data_kind": "synthetic_snapshot",
+        "live_verified": false,
+        "service": {
+          "service_id": "SVC-001",
+          "name": "Corporate VPN",
+          "owner_team": "Network Support",
+          "created_at": "2026-09-01T08:00:00Z",
+          "updated_at": "2026-10-16T08:00:00Z"
+        },
+        "incidents": [
+          {
+            "incident_id": "INC-001",
+            "service_id": "SVC-001",
+            "title": "Corporate gateway connection failures",
+            "impact_summary": "Multiple employees report gateway errors. Cause unconfirmed.",
+            "status": "investigating",
+            "severity": "high",
+            "started_at": "2026-10-16T06:00:00Z",
+            "resolved_at": null,
+            "created_at": "2026-09-01T08:00:00Z",
+            "updated_at": "2026-10-16T08:00:00Z"
+          }
+        ],
+        "has_more": false
+      }
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "vpn-first-failure",
+      "title": "VPN: first connection failure",
+      "description": "Current troubleshooting, with a separate future handoff condition.",
+      "request": {
+        "ticket": {
+          "subject": "VPN connection failed once",
+          "description": "Public websites load without VPN. My first Corporate VPN connection failed after entering sign-in details; I have not retried. Investigate my account, laptop and VPN service."
+        },
+        "employee_id": "EMP-001",
+        "service_ids": [
+          "SVC-001"
+        ],
+        "software_ids": []
+      },
+      "classification": {
+        "category": "Network",
+        "priority": "Medium",
+        "summary": "The user reports an initial VPN connection failure."
+      },
+      "sections": [
+        "vpn-access#connection-failures",
+        "vpn-access#authentication-failures"
+      ],
+      "decisions": [
+        {
+          "kind": "lookup",
+          "tool": "get_employee_account_status",
+          "arguments": {
+            "employee_id": "EMP-001"
+          }
+        },
+        {
+          "kind": "lookup",
+          "tool": "get_employee_devices",
+          "arguments": {
+            "employee_id": "EMP-001"
+          }
+        },
+        {
+          "kind": "lookup",
+          "tool": "get_active_service_incidents",
+          "arguments": {
+            "service_id": "SVC-001",
+            "limit": 5
+          }
+        },
+        {
+          "kind": "finish"
+        }
+      ],
+      "use_snapshots": true,
+      "draft": {
+        "schema_version": "investigation-synthesis-draft-v4",
+        "summary": {
+          "text": "The user reports one failed VPN connection and no retry. A documented reconnect remains to be tried.",
+          "references": [
+            {
+              "kind": "ticket"
+            },
+            {
+              "kind": "kb_chunk",
+              "chunk_id": "a2092fb728a33ddb73da01ffaefb260ab67e51eaf0a16a028b764a595ccbc81e"
+            }
+          ]
+        },
+        "findings": [
+          {
+            "text": "The user reports public websites load without VPN.",
+            "references": [
+              {
+                "kind": "ticket"
+              }
+            ]
+          }
+        ],
+        "steps": [
+          {
+            "step_type": "troubleshooting",
+            "action": "Select the Corporate gateway in Northstar Connect and reconnect once.",
+            "references": [
+              {
+                "kind": "kb_chunk",
+                "chunk_id": "a2092fb728a33ddb73da01ffaefb260ab67e51eaf0a16a028b764a595ccbc81e"
+              },
+              {
+                "kind": "ticket"
+              }
+            ]
+          }
+        ],
+        "missing_information": [],
+        "uncertainties": [
+          {
+            "text": "These fictional operational records were queried on 2026-10-23. Account, device and incident snapshots have their own source timestamps; none verifies current state, successful authentication, version support or incident causality.",
+            "references": [
+              {
+                "kind": "operational_observation",
+                "lookup_id": "lookup-1"
+              },
+              {
+                "kind": "operational_observation",
+                "lookup_id": "lookup-2"
+              },
+              {
+                "kind": "operational_observation",
+                "lookup_id": "lookup-3"
+              }
+            ]
+          }
+        ],
+        "escalation_reason": null,
+        "conditional_guidance": [
+          {
+            "condition": "Gateway errors persist after the documented reconnect.",
+            "action": "Send the error code and current client version to Network Support.",
+            "references": [
+              {
+                "kind": "kb_chunk",
+                "chunk_id": "a2092fb728a33ddb73da01ffaefb260ab67e51eaf0a16a028b764a595ccbc81e"
+              }
+            ],
+            "missing_evidence": "The result and error code of the retry, which the user has not yet performed."
+          }
+        ],
+        "trigger_basis": null
+      }
+    },
+    {
+      "id": "vpn-escalation",
+      "title": "VPN: persistent error after retry",
+      "description": "A ticket-reported trigger supports a current handoff.",
+      "request": {
+        "ticket": {
+          "subject": "VPN gateway error persists",
+          "description": "Public websites load without VPN. Corporate gateway error G42 persisted after I reconnected once. Investigate my account, laptop and VPN service."
+        },
+        "employee_id": "EMP-001",
+        "service_ids": [
+          "SVC-001"
+        ],
+        "software_ids": []
+      },
+      "classification": {
+        "category": "Network",
+        "priority": "Medium",
+        "summary": "The user reports a persistent gateway error after retry."
+      },
+      "sections": [
+        "vpn-access#connection-failures",
+        "vpn-access#authentication-failures"
+      ],
+      "decisions": [
+        {
+          "kind": "lookup",
+          "tool": "get_employee_account_status",
+          "arguments": {
+            "employee_id": "EMP-001"
+          }
+        },
+        {
+          "kind": "lookup",
+          "tool": "get_employee_devices",
+          "arguments": {
+            "employee_id": "EMP-001"
+          }
+        },
+        {
+          "kind": "lookup",
+          "tool": "get_active_service_incidents",
+          "arguments": {
+            "service_id": "SVC-001",
+            "limit": 5
+          }
+        },
+        {
+          "kind": "finish"
+        }
+      ],
+      "use_snapshots": true,
+      "draft": {
+        "schema_version": "investigation-synthesis-draft-v4",
+        "summary": {
+          "text": "The user reports a persistent G42 gateway error after a retry. The documented handoff applies to this reported condition.",
+          "references": [
+            {
+              "kind": "ticket"
+            },
+            {
+              "kind": "kb_chunk",
+              "chunk_id": "a2092fb728a33ddb73da01ffaefb260ab67e51eaf0a16a028b764a595ccbc81e"
+            }
+          ]
+        },
+        "findings": [
+          {
+            "text": "The user reports public websites load without VPN.",
+            "references": [
+              {
+                "kind": "ticket"
+              }
+            ]
+          }
+        ],
+        "steps": [
+          {
+            "step_type": "escalation",
+            "action": "Send the persistent G42 gateway error and VPN client version to Network Support for review.",
+            "references": [
+              {
+                "kind": "kb_chunk",
+                "chunk_id": "a2092fb728a33ddb73da01ffaefb260ab67e51eaf0a16a028b764a595ccbc81e"
+              },
+              {
+                "kind": "ticket"
+              }
+            ]
+          }
+        ],
+        "missing_information": [
+          "Provide the error time and current VPN client version for the handoff."
+        ],
+        "uncertainties": [
+          {
+            "text": "These fictional operational records were queried on 2026-10-23. Account, device and incident snapshots have their own source timestamps; none verifies current state, successful authentication, version support or incident causality.",
+            "references": [
+              {
+                "kind": "operational_observation",
+                "lookup_id": "lookup-1"
+              },
+              {
+                "kind": "operational_observation",
+                "lookup_id": "lookup-2"
+              },
+              {
+                "kind": "operational_observation",
+                "lookup_id": "lookup-3"
+              }
+            ]
+          }
+        ],
+        "escalation_reason": {
+          "text": "The ticket reports a gateway error persisting after a retry; the KB directs persistent gateway errors to Network Support.",
+          "references": [
+            {
+              "kind": "kb_chunk",
+              "chunk_id": "a2092fb728a33ddb73da01ffaefb260ab67e51eaf0a16a028b764a595ccbc81e"
+            },
+            {
+              "kind": "ticket"
+            }
+          ]
+        },
+        "conditional_guidance": [],
+        "trigger_basis": {
+          "policy_references": [
+            {
+              "kind": "kb_chunk",
+              "chunk_id": "a2092fb728a33ddb73da01ffaefb260ab67e51eaf0a16a028b764a595ccbc81e"
+            }
+          ],
+          "factual_references": [
+            {
+              "kind": "ticket"
+            }
+          ],
+          "explanation": "The ticket reports G42 persisting after a retry, matching the documented persistent-gateway-error handoff. This is ticket-reported, not independently verified."
+        }
+      }
+    },
+    {
+      "id": "documentation-gap",
+      "title": "Cafeteria: unsupported restoration request",
+      "description": "Safe abstention when the supplied procedures do not cover the request.",
+      "request": {
+        "ticket": {
+          "subject": "Restore deleted cafeteria transactions",
+          "description": "How can IT restore deleted cafeteria payment transactions?"
+        },
+        "employee_id": null,
+        "service_ids": [],
+        "software_ids": []
+      },
+      "classification": {
+        "category": "Software",
+        "priority": "Medium",
+        "summary": "The user requests restoration of deleted cafeteria payment transactions."
+      },
+      "sections": [
+        "password-reset#identity-verification-boundary"
+      ],
+      "decisions": [
+        {
+          "kind": "insufficient_evidence",
+          "gap_kind": "documentation"
+        }
+      ],
+      "use_snapshots": false,
+      "draft": null
+    }
+  ]
+}

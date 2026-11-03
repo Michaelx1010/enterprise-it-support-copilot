@@ -19,6 +19,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8,<10"]
+demo = ["streamlit>=1.50,<2"]
 
 [project.scripts]
 it-support = "app.cli:main"
